@@ -7,7 +7,7 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.imageio.ImageIO;
 
-public class ChessGUI extends JPanel {
+public class Main extends JPanel {
     private final int TILE_SIZE = 80; // dimensione ogni casellina
     private final int BOARD_SIZE = 8; // ricordo che scacchiera è una 8x8
     private final int BOARD_PIXEL_SIZE = TILE_SIZE * BOARD_SIZE;
@@ -18,11 +18,11 @@ public class ChessGUI extends JPanel {
     private final Map<String, BufferedImage> pieceImageMap = new HashMap<>(); // mappatura delle immagini
 
 
-    public ChessGUI() {
+    public Main() {
         loadAtari();
         BoardWithPieces();
         //timer per la durata della schermata
-        Timer timer = new Timer(3000, e -> {
+        Timer timer = new Timer(2000, e -> {
             showAtariScreen = false;
             repaint();
         });
@@ -211,7 +211,7 @@ public class ChessGUI extends JPanel {
     //Avvio la GUI --> main
     public static void main(String[] args) {
         JFrame frame = new JFrame("PRIMA PROVA GUI");
-        ChessGUI gui = new ChessGUI();
+        Main gui = new Main();
         frame.setUndecorated(true);
         frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
