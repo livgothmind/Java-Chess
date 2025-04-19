@@ -1,12 +1,13 @@
 package src.main.java;
+
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 import javax.imageio.ImageIO;
-
 
 public class Main extends JPanel {
     private final int TILE_SIZE = 80; // dimensione ogni casellina
@@ -17,18 +18,52 @@ public class Main extends JPanel {
     private BufferedImage atariLogo; // immagine per il logo inziale
     private BufferedImage[][] pieceImages = new BufferedImage[8][8]; // immagini della scacchiera matriciale
     private final Map<String, BufferedImage> pieceImageMap = new HashMap<>(); // mappatura delle immagini
-
+    private Board logicalBoard; // riferimento alla scacchiera logica
+    private int selectedRow = -1, selectedCol = -1; // posizioni del pezzo selezionato
 
     public Main() {
         loadAtari();
+        logicalBoard = new Board(); // SCACCHIERA LOGICA DELLA CLASSE BOARD
         BoardWithPieces();
-        //timer per la durata della schermata
+
         Timer timer = new Timer(2000, e -> {
             showAtariScreen = false;
             repaint();
         });
         timer.setRepeats(false);
         timer.start();
+
+        //PARTE DA FINIRE DEL MOUSE LISTENER ...
+        // MOUSE LISTENER
+        addMouseListener(new MouseAdapter() {
+            public void mousePressed(MouseEvent e) {
+                int col = (e.getX() - (getWidth() - BOARD_PIXEL_SIZE) / 2) / TILE_SIZE;
+                int row = (e.getY() - (getHeight() - BOARD_PIXEL_SIZE) / 2) / TILE_SIZE;
+
+                if (selectedRow == -1 && selectedCol == -1) {
+                    // PRENDO IL PEZZO
+                    if (row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE) {
+                        selectedRow = row;
+                        selectedCol = col;
+                        repaint();
+                    }
+                } else {
+                    // LO MUOVO SOLO SE LA NUOVA POSIZIONE È DIVERSA
+                    if (row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE) {
+                        if (row != selectedRow || col != selectedCol) {
+                            logicalBoard.move(new Position(selectedRow, selectedCol), new Position(row, col));
+                            // AGGIORNO LE IMMAGINI
+                            pieceImages[row][col] = pieceImages[selectedRow][selectedCol];
+                            pieceImages[selectedRow][selectedCol] = null;
+                            // ORA DESELEZIONO IL PEZZO PRESO--
+                            selectedRow = -1;
+                            selectedCol = -1;
+                            repaint();
+                        }
+                    }
+                }
+            }
+        });
     }
 
     private void loadAtari() {
@@ -57,11 +92,11 @@ public class Main extends JPanel {
         }
     }
 
-    // creo la scacchiera iniziale (SOLO INIZIALE SENZA EVENTI)
+    // Creo la scacchiera iniziale (SOLO INIZIALE SENZA EVENTI)
     private void BoardWithPieces() {
         loadPieceImages(); //chiamo il metoodo per i singoli tasselli
 
-        // CREO UN FOR SOLO DEI PEDONI !
+        // CREO UN FOR SOLO DEI PEDONI ! (prima riga nera, ultima bianca)
         for (int i = 0; i < BOARD_SIZE; i++) {
             pieceImages[1][i] = pieceImageMap.get("black_pawn");
             pieceImages[6][i] = pieceImageMap.get("white_pawn");
@@ -73,10 +108,9 @@ public class Main extends JPanel {
             pieceImages[0][i] = pieceImageMap.get("black_" + order[i]);
             pieceImages[7][i] = pieceImageMap.get("white_" + order[i]);
         }
-        // cosi prendo qualsiasi file del tipo black_ e white_ e li posiziono usando il metodo pieceImages --
     }
 
-    // disegno pannello
+    // Disegno pannello
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
@@ -84,18 +118,22 @@ public class Main extends JPanel {
         if (showAtariScreen) {
             drawAtariScreen(g);
         } else {
-            drawBackground(g);
-            drawPixelBorder(g);
-            drawChessBoard(g);
-            drawPieces(g);
+            drawBackground(g);  // sfondo sfumato
+            drawPixelBorder(g);  // bordo della scacchiera
+            drawChessBoard(g);   // scacchiera
+            drawPieces(g);        // pezzi
+        }
+
+        // Disegna il bordo di selezione del pezzo
+        if (selectedRow != -1 && selectedCol != -1) {
+            g.setColor(Color.RED);
+            int startX = (getWidth() - BOARD_PIXEL_SIZE) / 2 + selectedCol * TILE_SIZE;
+            int startY = (getHeight() - BOARD_PIXEL_SIZE) / 2 + selectedRow * TILE_SIZE;
+            g.drawRect(startX, startY, TILE_SIZE, TILE_SIZE);
         }
     }
-
-    // ridimensionamento dello schermo immagine atari --
+    // SCHERMATA ATARI
     private void drawAtariScreen(Graphics g) {
-        g.setColor(Color.BLACK);
-        g.fillRect(0, 0, getWidth(), getHeight());
-
         if (atariLogo != null) {
             int panelWidth = getWidth();
             int panelHeight = getHeight();
@@ -109,12 +147,16 @@ public class Main extends JPanel {
 
             int x = (panelWidth - newWidth) / 2;
             int y = (panelHeight - newHeight) / 2;
-
-            g.drawImage(atariLogo, x, y, newWidth, newHeight, null);
+            g.drawImage(atariLogo, x, y, newWidth, newHeight, this);
+        } else {
+            g.setColor(Color.RED);
+            g.setFont(new Font("Arial", Font.BOLD, 30));
+            g.drawString("Errore nel caricamento del logo Atari.", 50, 50);
         }
     }
 
-    // sfondo sfumato gioco totale
+
+    // SFONDO
     private void drawBackground(Graphics g) {
         Graphics2D g2d = (Graphics2D) g;
         int width = getWidth();
@@ -132,7 +174,7 @@ public class Main extends JPanel {
         }
     }
 
-    // bordo della scacchiera
+    // BORDO SCACCHIERA
     private void drawPixelBorder(Graphics g) {
         g.setColor(new Color(30, 18, 48)); // #1e1230
 
@@ -153,7 +195,7 @@ public class Main extends JPanel {
         }
     }
 
-    // disegno la scacchiera vera e propria
+    // SCACCHIERA GUI
     private void drawChessBoard(Graphics g) {
         Color dark = new Color(0x18254a);
         Color light = new Color(245, 238, 220);
@@ -174,7 +216,7 @@ public class Main extends JPanel {
         }
     }
 
-    // disegno i pezzi della scacchiera
+    // PEZZI SCACCHIERA
     private void drawPieces(Graphics g) {
         int startX = (getWidth() - BOARD_PIXEL_SIZE) / 2;
         int startY = (getHeight() - BOARD_PIXEL_SIZE) / 2;
@@ -189,27 +231,23 @@ public class Main extends JPanel {
                     BufferedImage resizedPiece = resizeImage(piece, pieceWidth, pieceHeight);
                     int x = startX + col * TILE_SIZE + (TILE_SIZE - pieceWidth) / 2;
                     int y = startY + row * TILE_SIZE + (TILE_SIZE - pieceHeight) / 2;
-
                     g.drawImage(resizedPiece, x, y, null);
                 }
             }
         }
     }
 
-    // metodo resize immagini : NON ANCORA CORRETTO
+    // DA FINIRE (??)
     private BufferedImage resizeImage(BufferedImage originalImage, int width, int height) {
         Image resizedImage = originalImage.getScaledInstance(width, height, Image.SCALE_SMOOTH);
         BufferedImage bufferedResizedImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-
         Graphics2D g2d = bufferedResizedImage.createGraphics();
-        g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
         g2d.drawImage(resizedImage, 0, 0, null);
         g2d.dispose();
-
         return bufferedResizedImage;
     }
 
-    //Avvio la GUI --> main
+    // Avvio la GUI --> main
     public static void main(String[] args) {
         JFrame frame = new JFrame("PRIMA PROVA GUI");
         Main gui = new Main();
