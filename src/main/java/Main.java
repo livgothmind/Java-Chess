@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.imageio.ImageIO;
 
+
 public class Main extends JPanel {
     private final int TILE_SIZE = 80; // dimensione ogni casellina
     private final int BOARD_SIZE = 8; // ricordo che scacchiera è una 8x8

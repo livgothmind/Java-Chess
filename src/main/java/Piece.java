@@ -1,8 +1,6 @@
 package src.main.java;
 
 import javax.swing.*;
-import src.main.java.Position;
-
 import java.util.List;
 
 public abstract class Piece {
@@ -17,10 +15,38 @@ public abstract class Piece {
         this.name = name;
         this.color = color;
         this.position = startPos;
-
         this.hasMoved = false;
     }
 
-
     public abstract List<Position> getValidPositions();
+
+
+    //getters e setters utili per board (?) non so se bisogna crearne altri
+    public Position getPosition() {
+        return position;
+    }
+
+    public void setPosition(Position newPos) {
+        this.position = newPos;
+    }
+
+    public boolean hasMoved() {
+        return hasMoved;
+    }
+
+    public void setHasMoved(boolean moved) {
+        this.hasMoved = moved;
+    }
+
+    public ImageIcon getTexture() {
+        return texture;
+    }
+
+    public ChessColor getColor() {
+        return color;
+    }
+
+    public String getName() {
+        return name;
+    }
 }
