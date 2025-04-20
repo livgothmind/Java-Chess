@@ -2,13 +2,12 @@ package src.main.java;
 
 import src.main.java.Pieces.*;
 
-import javax.swing.*;
 import java.util.ArrayList;
 import java.util.List;
 
 
 public class Board {
-    private List<Piece> pieces;
+    private final List<Piece> pieces;
 
     public Board() {
         this.pieces = new ArrayList<>();
@@ -42,8 +41,7 @@ public class Board {
     }
 
     public void move(Position from, Position to) {
-        for (int i = 0; i < pieces.size(); i++) {
-            Piece p = pieces.get(i);
+        for (Piece p : pieces) {
             if (p.getPosition().equals(from)) {
                 p.setPosition(to);
                 p.setHasMoved(true);
@@ -53,8 +51,7 @@ public class Board {
     }
 
     public Piece getPieceAt(Position pos) {
-        for (int i = 0; i < pieces.size(); i++) {
-            Piece p = pieces.get(i);
+        for (Piece p : pieces) {
             if (p.getPosition().equals(pos)) {
                 return p;
             }
@@ -62,7 +59,10 @@ public class Board {
         return null;
     }
 
-    //ritorno la lista dei pezzi creati
+    public void deletePieceAt(Position pos) {
+        pieces.removeIf(p -> p.getPosition().equals(pos));
+    }
+
     public List<Piece> getPieces() {
         return pieces;
     }

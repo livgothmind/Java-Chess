@@ -7,15 +7,13 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
-import java.util.HashMap;
-import java.util.Map;
 
 public class GameGUI extends JPanel {
     private final int TILE_SIZE = 80; // dimensione ogni casellina
     private final int BOARD_SIZE = 8; // ricordo che scacchiera è una 8x8
     private final int BOARD_PIXEL_SIZE = TILE_SIZE * BOARD_SIZE;
 
-    private GameLogic gameLogic;
+    private final GameLogic gameLogic;
     private boolean showAtariScreen = true;
     private BufferedImage atariLogo; // immagine per il logo inziale
     private int selectedRow = -1, selectedCol = -1; // posizioni del pezzo selezionato

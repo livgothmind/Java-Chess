@@ -2,21 +2,27 @@ package src.main.java;
 
 import src.main.java.Pieces.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class GameLogic {
     private int moveNumber;
     private ChessColor turn;
     private final Board board;
+    private List<List<Piece>> capturedPieces;
 
-    public GameLogic(int moveNumber, ChessColor turn, Board board) {
+    public GameLogic(int moveNumber, ChessColor turn, Board board, List<List<Piece>> alreadyCapturedPieces) {
         this.moveNumber = moveNumber;
         this.turn = turn;
         this.board = board;
+        this.capturedPieces = alreadyCapturedPieces;
     }
 
     public GameLogic() {
         this.moveNumber = 0;
         this.turn = ChessColor.WHITE;
         this.board = new Board();
+        this.capturedPieces = List.of(new ArrayList<>(), new ArrayList<>());
     }
 
     public ChessColor getTurn() {
@@ -119,23 +125,18 @@ public class GameLogic {
             turn = ChessColor.BLACK;
         else
             turn = ChessColor.WHITE;
+        // delete captured piece
+        if (this.board.getPieceAt(to) != null) {
+            this.board.deletePieceAt(to);
+        }
         this.board.move(from, to);
     }
 
     public boolean move(Position from, Position to) {
-        // Log the attempted move
-        System.out.println("Attempting to move piece from " + from + " to " + to);
-
         if (this.isMoveValid(from, to)) {
-            // Log if the move is valid
-            System.out.println("Move is valid.");
-
             updateState(from, to);
             return true;
-        } else {
-            // Log if the move is invalid
-            System.out.println("Move is invalid.");
-            return false;
         }
+        return false;
     }
 }
