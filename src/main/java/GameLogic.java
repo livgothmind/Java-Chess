@@ -1,9 +1,11 @@
 package src.main.java;
 
+import src.main.java.Pieces.*;
+
 public class GameLogic {
     private int moveNumber;
     private ChessColor turn;
-    private Board board;
+    private final Board board;
 
     public GameLogic(int moveNumber, ChessColor turn, Board board) {
         this.moveNumber = moveNumber;
@@ -49,6 +51,65 @@ public class GameLogic {
             return false;
         }
 
+        // For Rooks and Queens (vertical or horizontal moves)
+        if (fromPiece instanceof Rook || fromPiece instanceof Queen) {
+            if (from.x == to.x) { // Vertical move (same column)
+                int minY = Math.min(from.y, to.y);
+                int maxY = Math.max(from.y, to.y);
+                for (int y = minY + 1; y < maxY; y++) {
+                    if (this.board.getPieceAt(new Position(from.x, y)) != null) {
+                        return false; // Piece is blocking the path
+                    }
+                }
+            } else if (from.y == to.y) { // Horizontal move (same row)
+                int minX = Math.min(from.x, to.x);
+                int maxX = Math.max(from.x, to.x);
+                for (int x = minX + 1; x < maxX; x++) {
+                    if (this.board.getPieceAt(new Position(x, from.y)) != null) {
+                        return false; // Piece is blocking the path
+                    }
+                }
+            }
+        }
+
+        // For Bishops and Queens (diagonal moves)
+        if (fromPiece instanceof Bishop || fromPiece instanceof Queen) {
+            int deltaX = Math.abs(from.x - to.x);
+            int deltaY = Math.abs(from.y - to.y);
+            if (deltaX == deltaY) { // Ensure the move is diagonal
+                int stepX = (to.x > from.x) ? 1 : -1;
+                int stepY = (to.y > from.y) ? 1 : -1;
+                int x = from.x + stepX;
+                int y = from.y + stepY;
+                while (x != to.x && y != to.y) {
+                    if (this.board.getPieceAt(new Position(x, y)) != null) {
+                        return false; // Piece is blocking the path
+                    }
+                    x += stepX;
+                    y += stepY;
+                }
+            }
+        }
+
+        // For Pawns (straight move or capture move)
+        if (fromPiece instanceof Pawn) {
+            // Regular move (one square forward)
+            if (from.y == to.y) { // Only check straight-line moves
+                if (to.x == from.x + 1 || to.x == from.x - 1) { // Assuming pawn can move forward by 1 step
+                    if (this.board.getPieceAt(to) != null) {
+                        return false; // There's a piece blocking the straight move
+                    }
+                }
+            }
+
+            // Pawn capturing move (diagonal)
+            if (Math.abs(from.x - to.x) == 1 && Math.abs(from.y - to.y) == 1) {
+                if (this.board.getPieceAt(to) == null) {
+                    return false; // No opponent piece to capture
+                }
+            }
+        }
+
         return true;
     }
 
@@ -62,10 +123,19 @@ public class GameLogic {
     }
 
     public boolean move(Position from, Position to) {
+        // Log the attempted move
+        System.out.println("Attempting to move piece from " + from + " to " + to);
+
         if (this.isMoveValid(from, to)) {
+            // Log if the move is valid
+            System.out.println("Move is valid.");
+
             updateState(from, to);
             return true;
+        } else {
+            // Log if the move is invalid
+            System.out.println("Move is invalid.");
+            return false;
         }
-        return false;
     }
 }
