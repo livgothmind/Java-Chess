@@ -14,6 +14,14 @@ public class Pawn extends Piece {
     }
 
     @Override
+    public Piece copy() {
+        Pawn copy = new Pawn(this.color, new Position(this.position.x, this.position.y));
+        copy.setHasMoved(this.hasMoved());
+        return copy;
+    }
+
+
+    @Override
     public List<Position> getValidPositions() {
         List<Position> validPositions = new ArrayList<>();
         int direction = (this.color == ChessColor.WHITE) ? -1 : 1;

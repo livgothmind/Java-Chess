@@ -30,6 +30,7 @@ public abstract class Piece {
 
     public abstract List<Position> getValidPositions();
 
+    public abstract Piece copy();
 
     //getters e setters utili per board (?) non so se bisogna crearne altri
     public Position getPosition() {

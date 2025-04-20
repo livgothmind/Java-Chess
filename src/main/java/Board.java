@@ -8,17 +8,36 @@ import java.util.List;
 
 public class Board {
     private final List<Piece> pieces;
+    private final int width;
+    private final int height;
 
     public Board() {
         this.pieces = new ArrayList<>();
+        this.width = 8;
+        this.height = 8;
         initializeBoard();
     }
+
+    public Board(List<Piece> pieces) {
+        this.pieces = pieces;
+        this.width = 8;
+        this.height = 8;
+    }
+
+    public Board copy() {
+        List<Piece> copiedPieces = new ArrayList<>();
+        for (Piece piece : this.pieces) {
+            copiedPieces.add(piece.copy());
+        }
+        return new Board(copiedPieces);
+    }
+
 
     private void initializeBoard() {
         String[] order = {"rook", "knight", "bishop", "queen", "king", "bishop", "knight", "rook"};
 
         // mirror board creation
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < this.width; i++) {
             pieces.add(createPiece(order[i], ChessColor.BLACK, 0, i));
             pieces.add(createPiece("pawn", ChessColor.BLACK, 1, i));
             pieces.add(createPiece("pawn", ChessColor.WHITE, 6, i));
@@ -59,11 +78,23 @@ public class Board {
         return null;
     }
 
+    public void addPiece(Piece piece) {
+        this.pieces.add(piece);
+    }
+
     public void deletePieceAt(Position pos) {
         pieces.removeIf(p -> p.getPosition().equals(pos));
     }
 
     public List<Piece> getPieces() {
         return pieces;
+    }
+
+    public int getWidth() {
+        return width;
+    }
+
+    public int getHeight() {
+        return height;
     }
 }

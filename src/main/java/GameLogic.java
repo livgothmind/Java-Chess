@@ -38,7 +38,13 @@ public class GameLogic {
     }
 
     public boolean isMoveValid(Position from, Position to) {
-        // CHECK ALL THE CONDITIONS
+        // board boundaries
+        if (    from.x < 0 || to.x < 0 || from.y < 0 || to.y < 0 ||
+                from.x >= this.board.getWidth() || to.x >= this.board.getWidth() ||
+                from.y >= this.board.getHeight() || to.y >= this.board.getHeight()) {
+            return false;
+        }
+
         Piece fromPiece = this.board.getPieceAt(from);
         Piece toPiece = this.board.getPieceAt(to);
 
@@ -155,8 +161,12 @@ public class GameLogic {
             return false;
         }
 
+        System.out.println("Check.");
+
+        Board backup = this.board.copy();
+
         // Step 3: Check if any legal move can get out of check
-        for (Piece piece : board.getPieces()) {
+        for (Piece piece : backup.getPieces()) {
             if (piece.getColor() != this.turn) continue;
 
             List<Position> validMoves = piece.getValidPositions();
@@ -167,11 +177,22 @@ public class GameLogic {
                     continue;
                 }
 
+                // Simulate the move
+                Piece originalToPiece = board.getPieceAt(to);
+                board.deletePieceAt(to);
+                piece.setPosition(to);
+
                 boolean stillInCheck = false;
                 if (piece instanceof King) {
                     stillInCheck = this.isKingInCheck((King) piece);
                 } else {
                     stillInCheck = this.isKingInCheck(king);
+                }
+
+                // Undo the move
+                piece.setPosition(from);
+                if (originalToPiece != null) {
+                    this.board.addPiece(originalToPiece);
                 }
 
                 if (!stillInCheck) {

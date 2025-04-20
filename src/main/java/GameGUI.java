@@ -47,17 +47,14 @@ public class GameGUI extends JPanel {
                         repaint();
                     }
                 } else {
-                    // LO MUOVO SOLO SE LA NUOVA POSIZIONE È NEI LIMITI GRAFICI
-                    if (row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE) {
-                        gameLogic.move(new Position(selectedRow, selectedCol), new Position(row, col));
-                        if (gameLogic.isCheckmate()) {
-                            // TODO: checkmate screen to implement
-                        }
-                        // DESELEZIONO IL PEZZO PRESO
-                        selectedRow = -1;
-                        selectedCol = -1;
-                        repaint();
+                    gameLogic.move(new Position(selectedRow, selectedCol), new Position(row, col));
+                    if (gameLogic.isCheckmate()) {
+                        // TODO: checkmate screen to implement
                     }
+                    // DESELEZIONO IL PEZZO PRESO
+                    selectedRow = -1;
+                    selectedCol = -1;
+                    repaint();
                 }
             }
         });

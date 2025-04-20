@@ -15,6 +15,14 @@ public class Knight extends Piece {
     }
 
     @Override
+    public Piece copy() {
+        Knight copy = new Knight(this.color, new Position(this.position.x, this.position.y));
+        copy.setHasMoved(this.hasMoved());
+        return copy;
+    }
+
+
+    @Override
     public List<Position> getValidPositions() {
         List<Position> validPositions = new ArrayList<>();
         int x = this.position.x;

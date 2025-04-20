@@ -14,6 +14,13 @@ public class Bishop extends Piece {
     }
 
     @Override
+    public Piece copy() {
+        Bishop copy = new Bishop(this.color, new Position(this.position.x, this.position.y));
+        copy.setHasMoved(this.hasMoved());
+        return copy;
+    }
+
+    @Override
     public List<Position> getValidPositions() {
         List<Position> validPositions = new ArrayList<>();
         int x = this.position.x;
@@ -28,4 +35,5 @@ public class Bishop extends Piece {
 
         return validPositions;
     }
+
 }

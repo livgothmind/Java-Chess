@@ -14,6 +14,14 @@ public class Queen extends Piece {
     }
 
     @Override
+    public Piece copy() {
+        Queen copy = new Queen(this.color, new Position(this.position.x, this.position.y));
+        copy.setHasMoved(this.hasMoved());
+        return copy;
+    }
+
+
+    @Override
     public List<Position> getValidPositions() {
         List<Position> validPositions = new ArrayList<>();
         int x = this.position.x;
