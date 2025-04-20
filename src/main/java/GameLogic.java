@@ -30,7 +30,25 @@ public class GameLogic {
     }
 
     public boolean isMoveValid(Position from, Position to) {
-        // return false; // don't do anything
+        // CHECK ALL THE CONDITIONS
+        Piece fromPiece = this.board.getPieceAt(from);
+        Piece toPiece = this.board.getPieceAt(to);
+
+        // Check if there's no piece at the source position
+        if (fromPiece == null) {
+            return false;
+        }
+
+        // Check if there's a piece at the destination and it's the same color
+        if (toPiece != null && fromPiece.getColor() == toPiece.getColor()) {
+            return false;
+        }
+
+        // Check if 'to' is in the valid positions of 'from'
+        if (!fromPiece.getValidPositions().contains(to)) {
+            return false;
+        }
+
         return true;
     }
 
@@ -41,5 +59,13 @@ public class GameLogic {
         else
             turn = ChessColor.WHITE;
         this.board.move(from, to);
+    }
+
+    public boolean move(Position from, Position to) {
+        if (this.isMoveValid(from, to)) {
+            updateState(from, to);
+            return true;
+        }
+        return false;
     }
 }
