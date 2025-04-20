@@ -5,6 +5,7 @@ import src.main.java.Piece;
 import src.main.java.Position;
 
 import javax.swing.*;
+import java.util.ArrayList;
 import java.util.List;
 
 public class Queen extends Piece {

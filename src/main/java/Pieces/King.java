@@ -3,6 +3,7 @@ package src.main.java.Pieces;
 import src.main.java.ChessColor;
 import src.main.java.Piece;
 import src.main.java.Position;
+import java.util.ArrayList;
 
 import javax.swing.*;
 import java.util.List;
