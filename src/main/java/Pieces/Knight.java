@@ -10,8 +10,8 @@ import java.util.List;
 
 public class Knight extends Piece {
 
-    public Knight(ImageIcon texture, ChessColor color, Position startPos) {
-        super(texture, "Knight", color, startPos);
+    public Knight(ChessColor color, Position startPos) {
+        super("Knight", color, startPos);
     }
 
     @Override

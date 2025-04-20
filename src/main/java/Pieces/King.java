@@ -9,8 +9,8 @@ import javax.swing.*;
 import java.util.List;
 
 public class King extends Piece {
-    public King(ImageIcon texture, ChessColor color, Position startPos) {
-        super(texture, "King", color, startPos);
+    public King(ChessColor color, Position startPos) {
+        super( "King", color, startPos);
     }
 
     @Override

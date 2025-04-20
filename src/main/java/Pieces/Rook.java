@@ -9,8 +9,8 @@ import javax.swing.*;
 import java.util.List;
 
 public class Rook extends Piece {
-    public Rook(ImageIcon texture, ChessColor color, Position startPos) {
-        super(texture, "Rook", color, startPos);
+    public Rook(ChessColor color, Position startPos) {
+        super("Rook", color, startPos);
     }
 
     @Override

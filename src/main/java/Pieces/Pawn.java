@@ -9,8 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Pawn extends Piece {
-    public Pawn(ImageIcon texture, ChessColor color, Position startPos) {
-        super(texture, "Pawn", color, startPos);
+    public Pawn(ChessColor color, Position startPos) {
+        super( "Pawn", color, startPos);
     }
 
     @Override

@@ -9,8 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Queen extends Piece {
-    public Queen(ImageIcon texture, ChessColor color, Position startPos) {
-        super(texture, "Queen", color, startPos);
+    public Queen(ChessColor color, Position startPos) {
+        super("Queen", color, startPos);
     }
 
     @Override

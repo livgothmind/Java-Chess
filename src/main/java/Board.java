@@ -18,6 +18,7 @@ public class Board {
     private void initializeBoard() {
         String[] order = {"rook", "knight", "bishop", "queen", "king", "bishop", "knight", "rook"};
 
+        // mirror board creation
         for (int i = 0; i < 8; i++) {
             pieces.add(createPiece(order[i], ChessColor.BLACK, 0, i));
             pieces.add(createPiece("pawn", ChessColor.BLACK, 1, i));
@@ -27,17 +28,15 @@ public class Board {
     }
 
     private Piece createPiece(String name, ChessColor color, int row, int col) {
-        String path = String.format("assets/%s_%s.png", color.name().toLowerCase(), name.toLowerCase());
-        ImageIcon icon = new ImageIcon(path);
         Position pos = new Position(row, col);
 
         return switch (name.toLowerCase()) {
-            case "pawn" -> new Pawn(icon, color, pos);
-            case "rook" -> new Rook(icon, color, pos);
-            case "knight" -> new Knight(icon, color, pos);
-            case "bishop" -> new Bishop(icon, color, pos);
-            case "queen" -> new Queen(icon, color, pos);
-            case "king" -> new King(icon, color, pos);
+            case "pawn" -> new Pawn(color, pos);
+            case "rook" -> new Rook(color, pos);
+            case "knight" -> new Knight(color, pos);
+            case "bishop" -> new Bishop(color, pos);
+            case "queen" -> new Queen(color, pos);
+            case "king" -> new King(color, pos);
             default -> throw new IllegalArgumentException("Unknown piece name: " + name);
         };
     }
