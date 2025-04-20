@@ -9,7 +9,7 @@ public class GameLogic {
     private int moveNumber;
     private ChessColor turn;
     private final Board board;
-    private List<List<Piece>> capturedPieces;
+    private final List<List<Piece>> capturedPieces;
 
     public GameLogic(int moveNumber, ChessColor turn, Board board, List<List<Piece>> alreadyCapturedPieces) {
         this.moveNumber = moveNumber;
@@ -127,6 +127,9 @@ public class GameLogic {
             turn = ChessColor.WHITE;
         // delete captured piece
         if (this.board.getPieceAt(to) != null) {
+            Piece capturedPiece = board.getPieceAt(to);
+            this.capturedPieces.get((capturedPiece.getColor() == ChessColor.WHITE) ? 1 : 0).add(capturedPiece);
+            System.out.println("Captured " + capturedPiece.getColor() + " " + capturedPiece.getName() + " at " + to);
             this.board.deletePieceAt(to);
         }
         this.board.move(from, to);
