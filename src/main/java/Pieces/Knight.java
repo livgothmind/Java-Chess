@@ -15,6 +15,22 @@ public class Knight extends Piece {
 
     @Override
     public List<Position> getValidPositions() {
-        return List.of();
+        List<Position> validPositions = new ArrayList<>();
+        int x = this.position.x;
+        int y = this.position.y;
+
+        // All 8 possible L-shaped moves
+        int[][] moves = {
+                {+2, +1}, {+2, -1},
+                {-2, +1}, {-2, -1},
+                {+1, +2}, {+1, -2},
+                {-1, +2}, {-1, -2}
+        };
+
+        for (int[] move : moves) {
+            validPositions.add(new Position(x + move[0], y + move[1]));
+        }
+
+        return validPositions;
     }
 }
