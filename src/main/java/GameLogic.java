@@ -119,6 +119,72 @@ public class GameLogic {
         return true;
     }
 
+    public boolean isKingInCheck(King king) {
+        Position kingPos = king.getPosition();
+
+        for (Piece piece : board.getPieces()) {
+            if (piece.getColor() != king.getColor()) {
+                List<Position> possibleMoves = piece.getValidPositions();
+                for (Position to : possibleMoves) {
+                    if (kingPos.equals(to) && this.isMoveValid(piece.getPosition(), to)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false; // No enemy can reach the king
+    }
+
+    public boolean isCheckmate() {
+        // Step 1: Find the king of the current color
+        King king = null;
+        for (Piece piece : board.getPieces()) {
+            if (piece instanceof King && piece.getColor() == this.turn) {
+                king = (King) piece;
+                break;
+            }
+        }
+
+        if (king == null) {
+            return false; // Shouldn't happen, but defensive check
+        }
+
+        // Step 2: Check if the king is in check
+        if (!isKingInCheck(king)) {
+            return false;
+        }
+
+        // Step 3: Check if any legal move can get out of check
+        for (Piece piece : board.getPieces()) {
+            if (piece.getColor() != this.turn) continue;
+
+            List<Position> validMoves = piece.getValidPositions();
+            for (Position to : validMoves) {
+                Position from = piece.getPosition();
+
+                if (!this.isMoveValid(from, to)) {
+                    continue;
+                }
+
+                boolean stillInCheck = false;
+                if (piece instanceof King) {
+                    stillInCheck = this.isKingInCheck((King) piece);
+                } else {
+                    stillInCheck = this.isKingInCheck(king);
+                }
+
+                if (!stillInCheck) {
+                    return false; // Found a move that avoids checkmate
+                }
+            }
+        }
+
+        String winner = this.turn == ChessColor.WHITE ? "BLACK" : "WHITE";
+        System.out.println("Checkmate. " + winner + " player wins.");
+        return true; // No valid moves to escape check
+    }
+
     public void updateState(Position from, Position to) {
         moveNumber++;
         if (turn == ChessColor.WHITE)
