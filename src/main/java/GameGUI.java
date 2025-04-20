@@ -37,8 +37,11 @@ public class GameGUI extends JPanel {
                 int row = (e.getY() - (getHeight() - BOARD_PIXEL_SIZE) / 2) / TILE_SIZE;
 
                 if (selectedRow == -1 && selectedCol == -1) {
-                    // PRENDO IL PEZZO
-                    if (row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE) {
+                    Piece selectedPiece = gameLogic.getBoard().getPieceAt(new Position(row, col));
+                    if (    row >= 0 && row < BOARD_SIZE        &&
+                            col >= 0 && col < BOARD_SIZE        &&
+                            selectedPiece != null               &&
+                            gameLogic.getTurn() == selectedPiece.getColor()) {
                         selectedRow = row;
                         selectedCol = col;
                         repaint();
