@@ -37,7 +37,7 @@ public class GameLogic {
         return board;
     }
 
-    public boolean isMoveValid(Position from, Position to) {
+    public boolean isMoveValid(Position from, Position to, boolean checkForCheck) {
         // board boundaries
         if (    from.x < 0 || to.x < 0 || from.y < 0 || to.y < 0 ||
                 from.x >= this.board.getWidth() || to.x >= this.board.getWidth() ||
@@ -122,6 +122,29 @@ public class GameLogic {
             }
         }
 
+        if (checkForCheck) {// Simulate the move
+            Piece originalToPiece = board.getPieceAt(to);
+            board.deletePieceAt(to);
+            fromPiece.setPosition(to);
+
+            King king = null;
+            for (Piece piece : board.getPieces()) {
+                if (piece instanceof King && piece.getColor() == this.turn) {
+                    king = (King) piece;
+                    break;
+                }
+            }
+            boolean isStillCheck = isKingInCheck(king);
+
+            // Undo the move
+            fromPiece.setPosition(from);
+            if (originalToPiece != null) {
+                this.board.addPiece(originalToPiece);
+            }
+
+            return !isStillCheck;
+        }
+
         return true;
     }
 
@@ -132,7 +155,7 @@ public class GameLogic {
             if (piece.getColor() != king.getColor()) {
                 List<Position> possibleMoves = piece.getValidPositions();
                 for (Position to : possibleMoves) {
-                    if (kingPos.equals(to) && this.isMoveValid(piece.getPosition(), to)) {
+                    if (kingPos.equals(to) && this.isMoveValid(piece.getPosition(), to, false)) {
                         return true;
                     }
                 }
@@ -173,7 +196,7 @@ public class GameLogic {
             for (Position to : validMoves) {
                 Position from = piece.getPosition();
 
-                if (!this.isMoveValid(from, to)) {
+                if (!this.isMoveValid(from, to, false)) {
                     continue;
                 }
 
@@ -223,7 +246,7 @@ public class GameLogic {
     }
 
     public boolean move(Position from, Position to) {
-        if (this.isMoveValid(from, to)) {
+        if (this.isMoveValid(from, to, true)) {
             updateState(from, to);
             return true;
         }
