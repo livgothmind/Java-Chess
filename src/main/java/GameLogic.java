@@ -82,6 +82,7 @@ public class GameLogic {
             for (int y = from.y; y != to.y + step; y += step) {
                 fromPiece.position = new Position(from.x, y);
                 if (isKingInCheck((King) fromPiece)) {
+                    fromPiece.setPosition(from);
                     return false;
                 }
             }
