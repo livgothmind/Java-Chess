@@ -257,9 +257,9 @@ public class GameGUI extends JPanel {
 
             if (piece != null) {
                 if (piece.getColor() == ChessColor.WHITE) {
-                    g.setColor(new Color(0x7e5cab));
+                    g.setColor(new Color(0xf57c02));
                 } else {
-                    g.setColor(new Color(0x5856bf));
+                    g.setColor(new Color(0xf57c02));
                 }
             } else {
                 g.setColor(new Color(0xaa7fe3));
