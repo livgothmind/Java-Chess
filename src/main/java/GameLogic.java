@@ -10,6 +10,7 @@ public class GameLogic {
     private ChessColor turn;
     private final Board board;
     private final List<List<Piece>> capturedPieces;
+    private Position enPassantTargetSquare;
 
     public GameLogic(int moveNumber, ChessColor turn, Board board, List<List<Piece>> alreadyCapturedPieces) {
         this.moveNumber = moveNumber;
@@ -23,6 +24,7 @@ public class GameLogic {
         this.turn = ChessColor.WHITE;
         this.board = new Board();
         this.capturedPieces = List.of(new ArrayList<>(), new ArrayList<>());
+        this.enPassantTargetSquare = null;
     }
 
     public ChessColor getTurn() {
@@ -90,6 +92,15 @@ public class GameLogic {
             fromPiece.setPosition(from);
 
             return true;
+        }
+
+        // --- EN PASSANT ---
+        if (fromPiece instanceof Pawn && toPiece == null &&
+                Math.abs(from.y - to.y) == 1 && to.x - from.x == (fromPiece.getColor() == ChessColor.WHITE ? -1 : 1)) {
+
+            if (to.equals(this.enPassantTargetSquare)) {
+                return true;
+            }
         }
 
         // For Rooks and Queens (vertical or horizontal moves)
@@ -163,6 +174,7 @@ public class GameLogic {
                     break;
                 }
             }
+            assert king != null;
             boolean isStillCheck = isKingInCheck(king);
 
             // Undo the move
@@ -234,7 +246,7 @@ public class GameLogic {
                 board.deletePieceAt(to);
                 piece.setPosition(to);
 
-                boolean stillInCheck = false;
+                boolean stillInCheck;
                 if (piece instanceof King) {
                     stillInCheck = this.isKingInCheck((King) piece);
                 } else {
@@ -278,17 +290,44 @@ public class GameLogic {
             }
         }
 
+        // Turn flip
         if (turn == ChessColor.WHITE)
             turn = ChessColor.BLACK;
         else
             turn = ChessColor.WHITE;
-        // delete captured piece
-        if (this.board.getPieceAt(to) != null) {
-            Piece capturedPiece = board.getPieceAt(to);
+
+        // delete captured piece (standard or en passant)
+        Piece capturedPiece = board.getPieceAt(to);
+        if (capturedPiece != null) {
+            // Regular capture
             this.capturedPieces.get((capturedPiece.getColor() == ChessColor.WHITE) ? 1 : 0).add(capturedPiece);
             System.out.println("Captured " + capturedPiece.getColor() + " " + capturedPiece.getName() + " at " + to);
-            this.board.deletePieceAt(to);
+            board.deletePieceAt(to);
+        } else if (movingPiece instanceof Pawn && to.equals(enPassantTargetSquare)) {
+            // En passant capture
+            int direction = (movingPiece.getColor() == ChessColor.WHITE) ? 1 : -1;
+            Position capturedPawnPos = new Position(to.x + direction, to.y); // The pawn behind the en passant square
+            capturedPiece = board.getPieceAt(capturedPawnPos);
+            if (capturedPiece instanceof Pawn && capturedPiece.getColor() != movingPiece.getColor()) {
+                this.capturedPieces.get((capturedPiece.getColor() == ChessColor.WHITE) ? 1 : 0).add(capturedPiece);
+                System.out.println(
+                                "En passant capture: " + capturedPiece.getColor() +
+                                " " + capturedPiece.getName() +
+                                " at " + capturedPawnPos);
+                board.deletePieceAt(capturedPawnPos);
+            }
         }
+
+        // Determine if pawn just made two field move, opening en passant possibilities
+        if (movingPiece instanceof Pawn && Math.abs(to.x - from.x) == 2) {
+            int direction = (movingPiece.getColor() == ChessColor.WHITE) ? -1 : 1;
+            // The square behind the pawn (the one it "jumped over")
+            this.enPassantTargetSquare = new Position(from.x + direction, from.y);
+        } else {
+            // Reset en passant square if no pawn made such a move
+            this.enPassantTargetSquare = null;
+        }
+
         this.board.move(from, to);
     }
 
