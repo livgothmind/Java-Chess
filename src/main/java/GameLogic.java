@@ -10,7 +10,6 @@ public class GameLogic {
     private ChessColor turn;
     private final Board board;
     private final List<List<Piece>> capturedPieces;
-    private Position enPassantTargetSquare;
 
     public GameLogic(int moveNumber, ChessColor turn, Board board, List<List<Piece>> alreadyCapturedPieces) {
         this.moveNumber = moveNumber;
@@ -24,7 +23,6 @@ public class GameLogic {
         this.turn = ChessColor.WHITE;
         this.board = new Board();
         this.capturedPieces = List.of(new ArrayList<>(), new ArrayList<>());
-        this.enPassantTargetSquare = null;
     }
 
     public ChessColor getTurn() {
@@ -63,44 +61,6 @@ public class GameLogic {
         // Check if 'to' is in the valid positions of 'from'
         if (!fromPiece.getValidPositions().contains(to)) {
             return false;
-        }
-
-        // --- CASTLING ---
-        if (fromPiece instanceof King && Math.abs(from.y - to.y) == 2 && from.x == to.x) {
-            if (fromPiece.hasMoved()) return false;
-
-            int rookY = (to.y == 6) ? 7 : 0;
-            Position rookPos = new Position(from.x, rookY);
-            Piece rook = board.getPieceAt(rookPos);
-            if (!(rook instanceof Rook) || rook.hasMoved()) return false;
-
-            // Check spaces between king and rook are empty
-            int step = (to.y - from.y > 0) ? 1 : -1;
-            for (int y = from.y + step; y != rookY; y += step) {
-                if (board.getPieceAt(new Position(from.x, y)) != null) return false;
-            }
-
-            // Check king is not in check, or passing through check
-            for (int y = from.y; y != to.y + step; y += step) {
-                fromPiece.position = new Position(from.x, y);
-                if (isKingInCheck((King) fromPiece)) {
-                    fromPiece.setPosition(from);
-                    return false;
-                }
-            }
-
-            fromPiece.setPosition(from);
-
-            return true;
-        }
-
-        // --- EN PASSANT ---
-        if (fromPiece instanceof Pawn && toPiece == null &&
-                Math.abs(from.y - to.y) == 1 && to.x - from.x == (fromPiece.getColor() == ChessColor.WHITE ? -1 : 1)) {
-
-            if (to.equals(this.enPassantTargetSquare)) {
-                return true;
-            }
         }
 
         // For Rooks and Queens (vertical or horizontal moves)
@@ -174,7 +134,6 @@ public class GameLogic {
                     break;
                 }
             }
-            assert king != null;
             boolean isStillCheck = isKingInCheck(king);
 
             // Undo the move
@@ -246,7 +205,7 @@ public class GameLogic {
                 board.deletePieceAt(to);
                 piece.setPosition(to);
 
-                boolean stillInCheck;
+                boolean stillInCheck = false;
                 if (piece instanceof King) {
                     stillInCheck = this.isKingInCheck((King) piece);
                 } else {
@@ -272,65 +231,26 @@ public class GameLogic {
 
     public void updateState(Position from, Position to) {
         moveNumber++;
-
-        // Determine if castling is being performed
-        Piece movingPiece = board.getPieceAt(from);
-        if (movingPiece instanceof King && Math.abs(to.y - from.y) == 2) {
-            // King-side castling
-            if (to.y > from.y) {
-                Position rookFrom = new Position(from.x, 7);
-                Position rookTo = new Position(from.x, 5);
-                board.move(rookFrom, rookTo);
-            }
-            // Queen-side castling
-            else {
-                Position rookFrom = new Position(from.x, 0);
-                Position rookTo = new Position(from.x, 3);
-                board.move(rookFrom, rookTo);
-            }
-        }
-
-        // Turn flip
         if (turn == ChessColor.WHITE)
             turn = ChessColor.BLACK;
         else
             turn = ChessColor.WHITE;
-
-        // delete captured piece (standard or en passant)
-        Piece capturedPiece = board.getPieceAt(to);
-        if (capturedPiece != null) {
-            // Regular capture
+        // delete captured piece
+        if (this.board.getPieceAt(to) != null) {
+            Piece capturedPiece = board.getPieceAt(to);
             this.capturedPieces.get((capturedPiece.getColor() == ChessColor.WHITE) ? 1 : 0).add(capturedPiece);
             System.out.println("Captured " + capturedPiece.getColor() + " " + capturedPiece.getName() + " at " + to);
-            board.deletePieceAt(to);
-        } else if (movingPiece instanceof Pawn && to.equals(enPassantTargetSquare)) {
-            // En passant capture
-            int direction = (movingPiece.getColor() == ChessColor.WHITE) ? 1 : -1;
-            Position capturedPawnPos = new Position(to.x + direction, to.y); // The pawn behind the en passant square
-            capturedPiece = board.getPieceAt(capturedPawnPos);
-            if (capturedPiece instanceof Pawn && capturedPiece.getColor() != movingPiece.getColor()) {
-                this.capturedPieces.get((capturedPiece.getColor() == ChessColor.WHITE) ? 1 : 0).add(capturedPiece);
-                System.out.println(
-                                "En passant capture: " + capturedPiece.getColor() +
-                                " " + capturedPiece.getName() +
-                                " at " + capturedPawnPos);
-                board.deletePieceAt(capturedPawnPos);
-            }
+            this.board.deletePieceAt(to);
         }
-
-        // Determine if pawn just made two field move, opening en passant possibilities
-        if (movingPiece instanceof Pawn && Math.abs(to.x - from.x) == 2) {
-            int direction = (movingPiece.getColor() == ChessColor.WHITE) ? -1 : 1;
-            // The square behind the pawn (the one it "jumped over")
-            this.enPassantTargetSquare = new Position(from.x + direction, from.y);
-        } else {
-            // Reset en passant square if no pawn made such a move
-            this.enPassantTargetSquare = null;
-        }
-
         this.board.move(from, to);
     }
-
+    public List<Piece> getCapturedPieces(ChessColor color) {
+        if (color == ChessColor.WHITE) {
+            return List.copyOf(capturedPieces.get(1));
+        } else {
+            return List.copyOf(capturedPieces.get(0));
+        }
+    }
     public boolean move(Position from, Position to) {
         if (this.isMoveValid(from, to, true)) {
             updateState(from, to);
