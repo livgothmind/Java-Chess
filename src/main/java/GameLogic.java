@@ -63,6 +63,34 @@ public class GameLogic {
             return false;
         }
 
+        // --- CASTLING ---
+        if (fromPiece instanceof King && Math.abs(from.y - to.y) == 2 && from.x == to.x) {
+            if (fromPiece.hasMoved()) return false;
+
+            int rookY = (to.y == 6) ? 7 : 0;
+            Position rookPos = new Position(from.x, rookY);
+            Piece rook = board.getPieceAt(rookPos);
+            if (!(rook instanceof Rook) || rook.hasMoved()) return false;
+
+            // Check spaces between king and rook are empty
+            int step = (to.y - from.y > 0) ? 1 : -1;
+            for (int y = from.y + step; y != rookY; y += step) {
+                if (board.getPieceAt(new Position(from.x, y)) != null) return false;
+            }
+
+            // Check king is not in check, or passing through check
+            for (int y = from.y; y != to.y + step; y += step) {
+                fromPiece.position = new Position(from.x, y);
+                if (isKingInCheck((King) fromPiece)) {
+                    return false;
+                }
+            }
+
+            fromPiece.setPosition(from);
+
+            return true;
+        }
+
         // For Rooks and Queens (vertical or horizontal moves)
         if (fromPiece instanceof Rook || fromPiece instanceof Queen) {
             if (from.x == to.x) { // Vertical move (same column)
@@ -231,6 +259,24 @@ public class GameLogic {
 
     public void updateState(Position from, Position to) {
         moveNumber++;
+
+        // Determine if castling is being performed
+        Piece movingPiece = board.getPieceAt(from);
+        if (movingPiece instanceof King && Math.abs(to.y - from.y) == 2) {
+            // King-side castling
+            if (to.y > from.y) {
+                Position rookFrom = new Position(from.x, 7);
+                Position rookTo = new Position(from.x, 5);
+                board.move(rookFrom, rookTo);
+            }
+            // Queen-side castling
+            else {
+                Position rookFrom = new Position(from.x, 0);
+                Position rookTo = new Position(from.x, 3);
+                board.move(rookFrom, rookTo);
+            }
+        }
+
         if (turn == ChessColor.WHITE)
             turn = ChessColor.BLACK;
         else
