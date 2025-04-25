@@ -11,6 +11,7 @@ public class GameLogic {
     private final Board board;
     private final List<List<Piece>> capturedPieces;
     private Position enPassantTargetSquare;
+    private String drawReason = null;
 
     public GameLogic(int moveNumber, ChessColor turn, Board board, List<List<Piece>> alreadyCapturedPieces) {
         this.moveNumber = moveNumber;
@@ -329,6 +330,140 @@ public class GameLogic {
         }
 
         this.board.move(from, to);
+    }
+
+    //PRIMO TIPO DI PATTA --> STALEMATE
+    /*A draw by stalemate happens when the player who needs to move has no legal moves and his king is not in check
+    (otherwise, that would be a checkmate!).
+    For a stalemate to happen, the move that produced the position has to be legal.
+    */
+
+    public boolean isStalemate() {
+        King king = null;
+        for (Piece piece : board.getPieces()) {
+            if (piece instanceof King && piece.getColor() == this.turn) {
+                king = (King) piece;
+                break;
+            }
+        }
+
+        if (king == null) {
+            return false;
+        }
+
+        // SE KING IN CHECK
+        if (isKingInCheck(king)) {
+            return false;
+        }
+
+        // STEP "LEGALI"
+        for (Piece piece : board.getPieces()) {
+            if (piece.getColor() != this.turn) continue;
+
+            List<Position> validMoves = piece.getValidPositions();
+            for (Position to : validMoves) {
+                Position from = piece.getPosition();
+                if (this.isMoveValid(from, to, true)) {
+                    return false;
+                }
+            }
+        }
+
+        System.out.println("Stalemate. The game is a draw.");
+        return true; // NON CI SONO MOSSE E NON SIAMO IN CHECK --
+    }
+
+
+    //ALTRO TIPO DI PATTA (preso da chess.com)
+    //     * - King vs King
+    //     * - King and Bishop vs King
+    //     * - King and Knight vs King
+    //     * - King and Bishop vs King and Bishop (same color bishops)
+
+    public boolean isInsufficientMaterial() {
+        List<Piece> whitePieces = new ArrayList<>();
+        List<Piece> blackPieces = new ArrayList<>();
+
+        for (Piece piece : board.getPieces()) {
+            if (piece.getColor() == ChessColor.WHITE) {
+                whitePieces.add(piece);
+            } else {
+                blackPieces.add(piece);
+            }
+        }
+
+        if (whitePieces.size() > 2 || blackPieces.size() > 2) {
+            return false;
+        }
+
+        // King vs King
+        if (whitePieces.size() == 1 && blackPieces.size() == 1) {
+            System.out.println("Draw by insufficient material: King vs King");
+            return true;
+        }
+
+        // King and minor piece vs King
+        if (whitePieces.size() == 2 && blackPieces.size() == 1) {
+            Piece whiteNonKing = getNonKingPiece(whitePieces);
+            if (whiteNonKing instanceof Bishop || whiteNonKing instanceof Knight) {
+                System.out.println("Draw by insufficient material: King and " +
+                        whiteNonKing.getName() + " vs King");
+                return true;
+            }
+        }
+
+        if (blackPieces.size() == 2 && whitePieces.size() == 1) {
+            Piece blackNonKing = getNonKingPiece(blackPieces);
+            if (blackNonKing instanceof Bishop || blackNonKing instanceof Knight) {
+                System.out.println("Draw by insufficient material: King and " +
+                        blackNonKing.getName() + " vs King");
+                return true;
+            }
+        }
+
+        // King and Bishop vs King and Bishop
+        if (whitePieces.size() == 2 && blackPieces.size() == 2) {
+            Piece whiteNonKing = getNonKingPiece(whitePieces);
+            Piece blackNonKing = getNonKingPiece(blackPieces);
+
+            if (whiteNonKing instanceof Bishop && blackNonKing instanceof Bishop) {
+                //STESSO COLORE
+                boolean whiteBishopColor = ((whiteNonKing.getPosition().x + whiteNonKing.getPosition().y) % 2) == 0;
+                boolean blackBishopColor = ((blackNonKing.getPosition().x + blackNonKing.getPosition().y) % 2) == 0;
+
+                if (whiteBishopColor == blackBishopColor) {
+                    System.out.println("Draw by insufficient material: King and Bishop vs King and Bishop (same color)");
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private Piece getNonKingPiece(List<Piece> pieces) {
+        for (Piece piece : pieces) {
+            if (!(piece instanceof King)) {
+                return piece;
+            }
+        }
+        return null;
+    }
+
+    //metodo + suo getter per semplficare in gamegui
+    public boolean isDraw() {
+        if (isStalemate()) {
+            drawReason = "Stalemate";
+            return true;
+        } else if (isInsufficientMaterial()) {
+            drawReason = "Insufficient Material";
+            return true;
+        }
+        return false;
+    }
+
+    public String getDrawReason() {
+        return drawReason;
     }
 
     public List<Piece> getCapturedPieces(ChessColor color) {
