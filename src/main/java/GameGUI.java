@@ -134,14 +134,10 @@ public class GameGUI extends JPanel {
         if (gameLogic.isCheckmate()) {
             gameOver = true;
             winner = (gameLogic.getTurn() == ChessColor.WHITE) ? ChessColor.BLACK : ChessColor.WHITE;
-        } else if (gameLogic.isStalemate()) {
+        } else if (gameLogic.isDraw()) {
             gameOver = true;
             isDraw = true;
-            drawReason = "STALEMATE";
-        } else if (gameLogic.isInsufficientMaterial()) {
-            gameOver = true;
-            isDraw = true;
-            drawReason = "INSUFFICIENT MATERIAL";
+            drawReason = gameLogic.getDrawReason();
         }
     }
 
