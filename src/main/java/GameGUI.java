@@ -7,6 +7,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,6 +31,7 @@ public class GameGUI extends JPanel {
     private String playerBlackName = "Black Player";
     private boolean isDraw = false;
     private String drawReason = "";
+
 
     public GameGUI() {
         loadAtari();
@@ -304,22 +306,95 @@ public class GameGUI extends JPanel {
         }
     }
 
+
     private void drawBackground(Graphics g) {
         Graphics2D g2d = (Graphics2D) g;
         int width = getWidth();
         int height = getHeight();
+        int boardStartX = (width - BOARD_PIXEL_SIZE) / 2;
 
-        for (int y = 0; y < height; y += 4) {
-            for (int x = 0; x < width; x += 4) {
-                float ratio = (float) y / height;
-                int r = (int) (180 * (1 - ratio) + 13 * ratio);
-                int gr = (int) (220 * (1 - ratio) + 33 * ratio);
-                int b = (int) (255 * (1 - ratio) + 66 * ratio);
-                g2d.setColor(new Color(r, gr, b));
-                g2d.fillRect(x, y, 4, 4);
+        try {
+            Image backImage = new ImageIcon(getClass().getResource("/assets/back.png")).getImage();
+            g2d.drawImage(backImage, 0, 0, width, height, this);
+            GradientPaint gradient = new GradientPaint(0, 0, new Color(240, 240, 240, 100), width / 2, 0, new Color(255, 255, 255, 0));
+            g2d.setPaint(gradient);
+            g2d.fillRect(0, 0, width / 2, height);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        drawImage(g2d, "cometa.png", 60, 210, 80, 80, true);
+        drawImage(g2d, "cometa.png", 200, 600, 50, 50, true);
+        drawImage(g2d, "cometa.png", 400, 300, 50, 50, false);
+        drawImage(g2d, "cometa3.png", 100, 300, 50, 50, false);
+        drawImage(g2d, "cometa3.png", 5, 700, 50, 50, true);
+        drawImage(g2d, "moon.png", 20, 30, 250, 200);
+        drawImage(g2d, "planet.png", boardStartX / 2 - 20, height / 2 - 70, 180, 140);
+        drawImage(g2d, "planet.png", 0, 780, 180, 140, true);
+        drawImage(g2d, "planet.png", 4, 550, 60, 40, true);
+        drawImage(g2d, "planet.png", 250, 200, 70, 60, false);
+        drawImage(g2d, "star1.png", boardStartX - 100, 40, 100, 55);
+        drawImage(g2d, "star1.png", boardStartX, 90, 45, 45);
+        drawImage(g2d, "star1.png", 1, 350, 130, 80);
+        drawImage(g2d, "star2.png", boardStartX / 2 - 80, height / 2 + 90, 100, 60);
+        drawImage(g2d, "star2.png", 20, height / 2, 100, 60);
+        drawImage(g2d, "star2.png", 20, 15, 90, 60);
+        drawImage(g2d, "star2.png", 350, 200, 90, 50);
+        drawImage(g2d, "star2.png", 350, 750, 80, 50);
+        drawImage(g2d, "starunique.png", boardStartX / 2 - 120, height - 190, 150, 90);
+        drawImage(g2d, "starunique.png", 200, 260, 150, 100);
+        drawImage(g2d, "starunique.png", 300, 600, 150, 100);
+        drawImage(g2d, "starunique.png", 300, 500, 80, 60);
+        drawImage(g2d, "starunique2.png", boardStartX / 2 + 60, height - 180, 120, 80);
+        drawImage(g2d, "starunique2.png", 250, 150, 75, 40);
+        drawImage(g2d, "starunique2.png", 50, 700, 75, 40);
+        drawImage(g2d, "starunique2.png", 190, 50, 60, 30);
+        drawImage(g2d, "starunique2.png", 100, 100, 70, 45);
+        drawImage(g2d, "starunique2.png", 230, 250, 45, 25);
+        drawImage(g2d, "starunique2.png", 150, 500, 40, 20);
+        drawImage(g2d, "starunique2.png", 20, 600, 40, 20);
+        drawImage(g2d, "starunique2.png", 320, 100, 50, 25);
+        drawImage(g2d, "starunique2.png", 90, 700, 45, 20);
+        drawImage(g2d, "starunique2.png", 250, 50, 40, 20);
+        drawImage(g2d, "starunique2.png", 300, 400, 50, 25);
+        drawImage(g2d, "starunique2.png", 180, 350, 45, 20);
+        drawImage(g2d, "starunique2.png", 400, 500, 40, 20);
+        drawImage(g2d, "starunique2.png", 150, 600, 35, 20);
+        drawImage(g2d, "starunique2.png", 90, 450, 50, 25);
+        drawImage(g2d, "starunique2.png", 320, 200, 45, 25);
+        drawImage(g2d, "starwow.png", 100, 200, 30, 15);
+        drawImage(g2d, "starwow.png", 250, 100, 30, 15);
+        drawImage(g2d, "starwow.png", 150, 400, 25, 12);
+        drawImage(g2d, "starwow.png", 20, 500, 30, 15);
+        drawImage(g2d, "starwow.png", 320, 150, 35, 18);
+        drawImage(g2d, "starwow.png", 70, 600, 30, 15);
+        drawImage(g2d, "starwow.png", 200, 50, 30, 15);
+        drawImage(g2d, "starwow.png", 300, 300, 35, 18);
+        drawImage(g2d, "starwow.png", 250, 600, 90, 50);
+        drawImage(g2d, "starwow.png", 250, 800, 110, 70);
+
+    }
+
+    private void drawImage(Graphics2D g2d, String file, int x, int y, int w, int h) {
+        drawImage(g2d, file, x, y, w, h, false);
+    }
+
+    private void drawImage(Graphics2D g2d, String file, int x, int y, int w, int h, boolean flip) {
+        try {
+            BufferedImage img = ImageIO.read(new File("assets/" + file));
+            if (img == null) return;
+
+            img = img.getSubimage(5, 5, img.getWidth() - 10, img.getHeight() - 10);
+
+            if (flip) {
+                g2d.drawImage(img, x + w, y, -w, h, null);
+            } else {
+                g2d.drawImage(img, x, y, w, h, null);
             }
+        } catch (Exception e) {
+            System.err.println("Errore caricando " + file);
         }
     }
+
 
     private void drawPixelBorder(Graphics g) {
         g.setColor(new Color(30, 18, 48));
