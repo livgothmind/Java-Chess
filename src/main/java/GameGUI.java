@@ -28,6 +28,8 @@ public class GameGUI extends JPanel {
     private List<Piece> blackCaptured;
     private String playerWhiteName = "White Player";
     private String playerBlackName = "Black Player";
+    private boolean isDraw = false;
+    private String drawReason = "";
 
     public GameGUI() {
         loadAtari();
@@ -86,6 +88,8 @@ public class GameGUI extends JPanel {
         blackCaptured = new ArrayList<>();
         gameOver = false;
         winner = null;
+        isDraw = false;
+        drawReason = "";
         selectedRow = -1;
         selectedCol = -1;
         selectedPiece = null;
@@ -122,14 +126,22 @@ public class GameGUI extends JPanel {
     }
 
     private void updateCapturedPieces() {
-        whiteCaptured = gameLogic.getCapturedPieces(ChessColor.WHITE);
-        blackCaptured = gameLogic.getCapturedPieces(ChessColor.BLACK);
+        blackCaptured = gameLogic.getCapturedPieces(ChessColor.WHITE);
+        whiteCaptured = gameLogic.getCapturedPieces(ChessColor.BLACK);
     }
 
     private void checkGameEnd() {
         if (gameLogic.isCheckmate()) {
             gameOver = true;
             winner = (gameLogic.getTurn() == ChessColor.WHITE) ? ChessColor.BLACK : ChessColor.WHITE;
+        } else if (gameLogic.isStalemate()) {
+            gameOver = true;
+            isDraw = true;
+            drawReason = "STALEMATE";
+        } else if (gameLogic.isInsufficientMaterial()) {
+            gameOver = true;
+            isDraw = true;
+            drawReason = "INSUFFICIENT MATERIAL";
         }
     }
 
@@ -239,12 +251,15 @@ public class GameGUI extends JPanel {
             drawBackground(g);
         } else if (gameOver) {
             drawBackground(g);
-            drawWinScreen(g);
+            if (isDraw) {
+                drawDrawScreen(g);
+            } else {
+                drawWinScreen(g);
+            }
         } else {
             drawGame(g);
         }
     }
-
     private void drawGame(Graphics g) {
         drawBackground(g);
         drawPixelBorder(g);
@@ -257,9 +272,9 @@ public class GameGUI extends JPanel {
 
             if (piece != null) {
                 if (piece.getColor() == ChessColor.WHITE) {
-                    g.setColor(new Color(0xf57c02));
+                    g.setColor(new Color(0xFF8200));
                 } else {
-                    g.setColor(new Color(0xf57c02));
+                    g.setColor(new Color(0xFF8100));
                 }
             } else {
                 g.setColor(new Color(0xaa7fe3));
@@ -419,6 +434,53 @@ public class GameGUI extends JPanel {
         }
     }
 
+    private void drawDrawScreen(Graphics g) {
+        Graphics2D g2d = (Graphics2D) g;
+        g2d.setColor(new Color(0, 0, 0, 180));
+        g2d.fillRect(0, 0, getWidth(), getHeight());
+
+        try {
+            Font customFont;
+            InputStream fontStream = getClass().getResourceAsStream("/assets/PressStart2P-Regular.ttf");
+
+            if (fontStream != null) {
+                customFont = Font.createFont(Font.TRUETYPE_FONT, fontStream).deriveFont(48f);
+                g2d.setFont(customFont);
+                fontStream.close();
+            } else {
+                g2d.setFont(new Font("Arial", Font.BOLD, 48));
+                System.err.println("Font non trovato, usando fallback");
+            }
+        } catch (Exception e) {
+            g2d.setFont(new Font("Arial", Font.BOLD, 48));
+            System.err.println("Errore caricamento font: " + e.getMessage());
+        }
+
+        g2d.setColor(Color.WHITE);
+        FontMetrics fm = g2d.getFontMetrics();
+
+        String drawText = "DRAW!";
+        int textWidth = fm.stringWidth(drawText);
+        int x = (getWidth() - textWidth) / 2;
+        int y = getHeight() / 2 - 50;
+        g2d.drawString(drawText, x, y);
+
+
+        g2d.setFont(g2d.getFont().deriveFont(24f));
+        fm = g2d.getFontMetrics();
+        String reasonText = "(" + drawReason + ")";
+        textWidth = fm.stringWidth(reasonText);
+        x = (getWidth() - textWidth) / 2;
+        y = getHeight() / 2 + 10;
+        g2d.drawString(reasonText, x, y);
+
+        String restartText = "Click anywhere to restart";
+        textWidth = fm.stringWidth(restartText);
+        x = (getWidth() - textWidth) / 2;
+        y = getHeight() / 2 + 50;
+        g2d.drawString(restartText, x, y);
+    }
+
     private void drawWinScreen(Graphics g) {
         Graphics2D g2d = (Graphics2D) g;
         g2d.setColor(new Color(0, 0, 0, 180));
@@ -459,6 +521,7 @@ public class GameGUI extends JPanel {
         y = getHeight() / 2 + 50;
         g2d.drawString(restartText, x, y);
     }
+
     private BufferedImage resizeImage(BufferedImage originalImage, int width, int height) {
         Image resizedImage = originalImage.getScaledInstance(width, height, Image.SCALE_SMOOTH);
         BufferedImage bufferedResizedImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
