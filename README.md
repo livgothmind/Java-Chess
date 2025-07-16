@@ -14,7 +14,7 @@ Questo progetto implementa un gioco di scacchi completamente funzionale con:
 - Sistema di cattura dei pezzi
 - Interfaccia utente con tema spaziale
 
-*[Spazio riservato per screenshot dell'interfaccia principale]*
+![Screenshot dell'applicazione](screenshot.png)
 
 ## 🏗️ Architettura e Principi OOP
 
