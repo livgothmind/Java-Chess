@@ -2,20 +2,26 @@ package src.main.java;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
+import javax.swing.Timer;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
-import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
+import java.util.*;
 import java.util.List;
 
 public class GameGUI extends JPanel {
-    private final int TILE_SIZE = 80;
-    private final int BOARD_SIZE = 8;
-    private final int BOARD_PIXEL_SIZE = TILE_SIZE * BOARD_SIZE;
+
+    private static final boolean SKIP_BACKGROUND = false;
+
+    private List<Position> cachedSelectionMoves = Collections.emptyList();
+
+    private static final int TILE_SIZE = 80;
+    private static final int BOARD_SIZE = 8;
+    private static final int BOARD_PIXEL_SIZE = TILE_SIZE * BOARD_SIZE;
+
     private Piece selectedPiece = null;
     private Color highlightColor = null;
     private GameLogic gameLogic;
@@ -25,38 +31,62 @@ public class GameGUI extends JPanel {
     private int selectedRow = -1, selectedCol = -1;
     private boolean gameOver = false;
     private ChessColor winner = null;
-    private List<Piece> whiteCaptured;
-    private List<Piece> blackCaptured;
+    private List<Piece> whiteCaptured = new ArrayList<>();
+    private List<Piece> blackCaptured = new ArrayList<>();
     private String playerWhiteName = "White Player";
     private String playerBlackName = "Black Player";
     private boolean isDraw = false;
     private String drawReason = "";
 
+    // Cache scaling pezzi
+    private final Map<String, Image> pieceScaleCache = new HashMap<>();
+
+    // Background prerender
+    private BufferedImage backgroundCache = null;
+    private Dimension backgroundCacheSize = new Dimension(0,0);
+    private final Map<String, BufferedImage> assetImageCache = new HashMap<>();
+
+    /* ================== STELLE (campo puntiforme) ================== */
+    private final List<Point> tinyStars = new ArrayList<>();
+    private final List<Point> smallStars = new ArrayList<>();
+    private final List<Point> mediumStars = new ArrayList<>();
+
+    // ==== CONFIG STELLE PUNTIFORMI ====
+    private static final int TINY_COUNT = 150;
+    private static final int SMALL_COUNT = 80;
+    private static final int MEDIUM_COUNT = 32;
+    private static final int MIN_DIST = 12;
+    private static final Color STAR_COLOR_TINY = new Color(255,255,255,140);
+    private static final Color STAR_COLOR_SMALL = new Color(255,235,200,180);
+    private static final Color STAR_COLOR_MEDIUM = new Color(200,225,255,210);
+
+    /* ================== STELLE IMMAGINE (senza overlap) ================== */
+    private final List<StarSprite> imageStars = new ArrayList<>();
+
+    // ==== CONFIG STELLE IMMAGINE ====
+    private static final int IMAGE_STAR_COUNT = 18;
+    private static final int MIN_GAP = 6; // padding minimo tra sprite immagine
+    private static final int LEFT_MARGIN_EXTRA = 10;
+    private static final String[] STAR_ASSETS = {
+            "star1.png", "starunique.png", "starunique2.png"
+    };
+
+    /* ================== TIMER CHESS ================== */
+    private long whiteMillis = 5 * 60 * 1000; // default 5:00
+    private long blackMillis = 5 * 60 * 1000;
+    private static final long START_MILLIS_DEFAULT = 5 * 60 * 1000;
+    private static final long INCREMENT_MILLIS = 0; // es. 2000 per +2s
+    private javax.swing.Timer clockSwingTimer;
+    private long lastTickNano = 0L;
+    private boolean clocksRunning = false;
+    private boolean lossOnTime = true;
 
     public GameGUI() {
         loadAtari();
         gameLogic = new GameLogic();
-        whiteCaptured = new ArrayList<>();
-        blackCaptured = new ArrayList<>();
-        try {
+        loadFontOnce();
 
-            InputStream fontStream = getClass().getClassLoader().getResourceAsStream("assets/PressStart2P-Regular.ttf");
-            if (fontStream == null) {
-                fontStream = getClass().getResourceAsStream("/assets/PressStart2P-Regular.ttf");
-            }
-
-            if (fontStream != null) {
-                Font customFont = Font.createFont(Font.TRUETYPE_FONT, fontStream).deriveFont(24f);
-                GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
-                ge.registerFont(customFont);
-                fontStream.close();
-            } else {
-                System.err.println("Font file not found!");
-            }
-        } catch (Exception e) {
-            System.err.println("Error loading font: " + e.getMessage());
-            e.printStackTrace();
-        }
+        initClocks();
 
         Timer atariTimer = new Timer(2000, e -> {
             showAtariScreen = false;
@@ -73,63 +103,138 @@ public class GameGUI extends JPanel {
                     resetGame();
                     return;
                 }
-
                 if (showAtariScreen || showNameInput) return;
 
-                int col = (e.getX() - (getWidth() - BOARD_PIXEL_SIZE) / 2) / TILE_SIZE;
-                int row = (e.getY() - (getHeight() - BOARD_PIXEL_SIZE) / 2) / TILE_SIZE;
+                final int startX = (getWidth() - BOARD_PIXEL_SIZE) / 2;
+                final int startY = (getHeight() - BOARD_PIXEL_SIZE) / 2;
 
-                handleMove(row, col);
+                int col = (e.getX() - startX) / TILE_SIZE;
+                int row = (e.getY() - startY) / TILE_SIZE;
+
+                if (col < 0 || col >= BOARD_SIZE || row < 0 || row >= BOARD_SIZE) return;
+                handleSelectionClick(row, col);
             }
         });
     }
 
+    /* ===================== Init / Reset ===================== */
+
+    private void loadFontOnce() {
+        try (InputStream fontStream = getClass().getResourceAsStream("/assets/PressStart2P-Regular.ttf")) {
+            if (fontStream != null) {
+                Font customFont = Font.createFont(Font.TRUETYPE_FONT, fontStream).deriveFont(24f);
+                GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(customFont);
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private void loadAtari() {
+        try {
+            atariLogo = ImageIO.read(new File("assets/atari.jpg"));
+        } catch (Exception ignored) {}
+    }
+
     private void resetGame() {
         gameLogic = new GameLogic();
+
+        // Ricrea nuove liste mutabili (non usare clear() su possibili liste immutabili)
         whiteCaptured = new ArrayList<>();
         blackCaptured = new ArrayList<>();
+
         gameOver = false;
         winner = null;
         isDraw = false;
         drawReason = "";
-        selectedRow = -1;
-        selectedCol = -1;
-        selectedPiece = null;
-        highlightColor = null;
+
+        clearSelection();
+
+        // Reset timer
+        whiteMillis = blackMillis = START_MILLIS_DEFAULT;
+        lastTickNano = System.nanoTime();
+        clocksRunning = true;
+
+        cachedSelectionMoves = Collections.emptyList();
+
         repaint();
     }
 
-    private void handleMove(int row, int col) {
-        if (selectedRow == -1 && selectedCol == -1) {
-            selectedPiece = gameLogic.getBoard().getPieceAt(new Position(row, col));
-            if (row >= 0 && row < BOARD_SIZE &&
-                    col >= 0 && col < BOARD_SIZE &&
-                    selectedPiece != null &&
-                    gameLogic.getTurn() == selectedPiece.getColor()) {
+    /* ================= Selezione ottimizzata ================= */
+
+    private void handleSelectionClick(int row, int col) {
+        if (selectedRow < 0) {
+            Piece p = gameLogic.getBoard().getPieceAt(new Position(row, col));
+            if (p != null && p.getColor() == gameLogic.getTurn()) {
+                selectedPiece = p;
                 selectedRow = row;
                 selectedCol = col;
-                highlightColor = (selectedPiece.getColor() == ChessColor.WHITE) ?
-                        new Color(173, 216, 230, 150) : new Color(238, 130, 238, 150);
+                // Colore azzurrino brillante (bordo)
+                highlightColor = new Color(70, 200, 255, 230);
+                computeSelectionMoves(row, col, p);
                 repaint();
             }
         } else {
+            if (row == selectedRow && col == selectedCol) {
+                clearSelection();
+                repaint();
+                return;
+            }
             boolean moved = gameLogic.move(new Position(selectedRow, selectedCol), new Position(row, col));
-            selectedRow = -1;
-            selectedCol = -1;
-            selectedPiece = null;
-            highlightColor = null;
 
+            if (moved) {
+                // Incremento sul giocatore che ha appena mosso (turn già aggiornato dentro gameLogic)
+                if (INCREMENT_MILLIS > 0) {
+                    ChessColor justMoved = (gameLogic.getTurn() == ChessColor.WHITE) ? ChessColor.BLACK : ChessColor.WHITE;
+                    if (justMoved == ChessColor.WHITE) whiteMillis += INCREMENT_MILLIS;
+                    else blackMillis += INCREMENT_MILLIS;
+                }
+            }
+
+            clearSelection();
             if (moved) {
                 updateCapturedPieces();
                 checkGameEnd();
+                if (gameOver) clocksRunning = false;
             }
             repaint();
         }
     }
 
+    private void computeSelectionMoves(int row, int col, Piece piece) {
+        List<Position> geo = piece.getValidPositions();
+        if (geo.isEmpty()) {
+            cachedSelectionMoves = Collections.emptyList();
+            return;
+        }
+        ArrayList<Position> legal = new ArrayList<>(geo.size());
+        Position from = new Position(row, col);
+        for (Position candidate : geo) {
+            if (candidate.x < 0 || candidate.x >= BOARD_SIZE ||
+                    candidate.y < 0 || candidate.y >= BOARD_SIZE)
+                continue;
+            if (gameLogic.isMoveValid(from, candidate, true)) {
+                legal.add(candidate);
+            }
+        }
+        cachedSelectionMoves = legal;
+    }
+
+    private void clearSelection() {
+        selectedRow = -1;
+        selectedCol = -1;
+        selectedPiece = null;
+        highlightColor = null;
+        cachedSelectionMoves = Collections.emptyList();
+    }
+
+    /* =================== Stato di gioco ===================== */
+
     private void updateCapturedPieces() {
-        blackCaptured = gameLogic.getCapturedPieces(ChessColor.WHITE);
-        whiteCaptured = gameLogic.getCapturedPieces(ChessColor.BLACK);
+        // Assunzione: getCapturedPieces(color) restituisce i pezzi DI quel colore che sono stati catturati.
+        List<Piece> capturedBlack = gameLogic.getCapturedPieces(ChessColor.BLACK);
+        List<Piece> capturedWhite = gameLogic.getCapturedPieces(ChessColor.WHITE);
+
+        whiteCaptured = (capturedBlack == null) ? new ArrayList<>() : new ArrayList<>(capturedBlack);
+        blackCaptured = (capturedWhite == null) ? new ArrayList<>() : new ArrayList<>(capturedWhite);
     }
 
     private void checkGameEnd() {
@@ -143,17 +248,10 @@ public class GameGUI extends JPanel {
         }
     }
 
-    private void loadAtari() {
-        try {
-            atariLogo = ImageIO.read(new File("assets/atari.jpg"));
-        } catch (Exception e) {
-            System.out.println("Failed to load Atari startup! ERROR:1");
-        }
-    }
+    /* ================= Nome giocatori ================= */
 
     private void getPlayerNames() {
         JPanel panel = new JPanel(new GridLayout(3, 2, 10, 10)) {
-            @Override
             protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
                 g.setColor(new Color(0, 0, 0, 200));
@@ -164,22 +262,12 @@ public class GameGUI extends JPanel {
         panel.setOpaque(false);
 
         Font customFont;
-        try {
-            // Stessa logica di caricamento del font
-            InputStream fontStream = getClass().getClassLoader().getResourceAsStream("assets/PressStart2P-Regular.ttf");
-            if (fontStream == null) {
-                fontStream = getClass().getResourceAsStream("/assets/PressStart2P-Regular.ttf");
-            }
-
-            if (fontStream != null) {
-                customFont = Font.createFont(Font.TRUETYPE_FONT, fontStream).deriveFont(14f);
-                fontStream.close();
-            } else {
-                throw new Exception("Font not found");
-            }
+        try (InputStream fontStream = getClass().getResourceAsStream("/assets/PressStart2P-Regular.ttf")) {
+            customFont = (fontStream != null)
+                    ? Font.createFont(Font.TRUETYPE_FONT, fontStream).deriveFont(14f)
+                    : new Font("Arial", Font.BOLD, 14);
         } catch (Exception e) {
             customFont = new Font("Arial", Font.BOLD, 14);
-            System.err.println("Using fallback font due to: " + e.getMessage());
         }
 
         JLabel whiteLabel = new JLabel("WHITE PLAYER NAME:");
@@ -206,8 +294,8 @@ public class GameGUI extends JPanel {
             playerWhiteName = whiteField.getText().trim().isEmpty() ? "White Player" : whiteField.getText();
             playerBlackName = blackField.getText().trim().isEmpty() ? "Black Player" : blackField.getText();
             showNameInput = false;
-            Window window = SwingUtilities.getWindowAncestor(panel);
-            window.dispose();
+            Window w = SwingUtilities.getWindowAncestor(panel);
+            if (w != null) w.dispose();
             repaint();
         });
 
@@ -239,6 +327,8 @@ public class GameGUI extends JPanel {
         button.setFocusPainted(false);
     }
 
+    /* ===================== Painting ===================== */
+
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
@@ -249,38 +339,60 @@ public class GameGUI extends JPanel {
             drawBackground(g);
         } else if (gameOver) {
             drawBackground(g);
-            if (isDraw) {
-                drawDrawScreen(g);
-            } else {
-                drawWinScreen(g);
-            }
+            if (isDraw) drawDrawScreen(g); else drawWinScreen(g);
         } else {
             drawGame(g);
         }
     }
+
     private void drawGame(Graphics g) {
         drawBackground(g);
         drawPixelBorder(g);
         drawChessBoard(g);
         drawPieces(g);
         drawCapturedPieces(g);
+        drawSelectionHighlight(g);
+        drawMoveHints(g);
+    }
 
-        if (selectedRow != -1 && selectedCol != -1) {
-            Piece piece = gameLogic.getBoard().getPieceAt(new Position(selectedRow, selectedCol));
+    private void drawSelectionHighlight(Graphics g) {
+        if (selectedRow < 0) return;
+        int startX = (getWidth() - BOARD_PIXEL_SIZE) / 2 + selectedCol * TILE_SIZE;
+        int startY = (getHeight() - BOARD_PIXEL_SIZE) / 2 + selectedRow * TILE_SIZE;
 
-            if (piece != null) {
-                if (piece.getColor() == ChessColor.WHITE) {
-                    g.setColor(new Color(0xFF8200));
-                } else {
-                    g.setColor(new Color(0xFF8100));
-                }
-            } else {
-                g.setColor(new Color(0xaa7fe3));
-            }
+        if (highlightColor == null) {
+            highlightColor = new Color(70, 200, 255, 230);
+        }
 
-            int startX = (getWidth() - BOARD_PIXEL_SIZE) / 2 + selectedCol * TILE_SIZE;
-            int startY = (getHeight() - BOARD_PIXEL_SIZE) / 2 + selectedRow * TILE_SIZE;
-            g.drawRect(startX, startY, TILE_SIZE, TILE_SIZE);
+        // Riempimento tenue
+        g.setColor(new Color(highlightColor.getRed(), highlightColor.getGreen(), highlightColor.getBlue(), 65));
+        g.fillRect(startX, startY, TILE_SIZE, TILE_SIZE);
+
+        Graphics2D g2 = (Graphics2D) g;
+
+        // Bordo spesso
+        g2.setColor(highlightColor);
+        g2.setStroke(new BasicStroke(6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g2.drawRect(startX, startY, TILE_SIZE, TILE_SIZE);
+
+        // Glow interno
+        g2.setColor(new Color(255,255,255,120));
+        g2.setStroke(new BasicStroke(2f));
+        g2.drawRect(startX+2, startY+2, TILE_SIZE-4, TILE_SIZE-4);
+    }
+
+    private void drawMoveHints(Graphics g) {
+        if (cachedSelectionMoves.isEmpty()) return;
+        Graphics2D g2 = (Graphics2D) g;
+        int boardStartX = (getWidth() - BOARD_PIXEL_SIZE) / 2;
+        int boardStartY = (getHeight() - BOARD_PIXEL_SIZE) / 2;
+        // Viola (puoi cambiare qui se preferisci azzurro)
+        g2.setColor(new Color(210, 120, 255, 170));
+        int r = TILE_SIZE / 3;
+        for (Position p : cachedSelectionMoves) {
+            int x = boardStartX + p.y * TILE_SIZE;
+            int y = boardStartY + p.x * TILE_SIZE;
+            g2.fillOval(x + (TILE_SIZE - r) / 2, y + (TILE_SIZE - r) / 2, r, r);
         }
     }
 
@@ -288,113 +400,252 @@ public class GameGUI extends JPanel {
         if (atariLogo != null) {
             int panelWidth = getWidth();
             int panelHeight = getHeight();
-
-            double scaleX = (double) panelWidth / atariLogo.getWidth();
-            double scaleY = (double) panelHeight / atariLogo.getHeight();
-            double scale = Math.min(scaleX, scaleY);
-
+            double scale = Math.min(panelWidth / (double) atariLogo.getWidth(),
+                    panelHeight / (double) atariLogo.getHeight());
             int newWidth = (int) (atariLogo.getWidth() * scale);
             int newHeight = (int) (atariLogo.getHeight() * scale);
-
             int x = (panelWidth - newWidth) / 2;
             int y = (panelHeight - newHeight) / 2;
             g.drawImage(atariLogo, x, y, newWidth, newHeight, this);
-        } else {
-            g.setColor(Color.RED);
-            g.setFont(new Font("Arial", Font.BOLD, 30));
-            g.drawString("Errore nel caricamento del logo Atari.", 50, 50);
         }
     }
 
+    /* =========== BACKGROUND PRERENDERIZZATO =========== */
 
     private void drawBackground(Graphics g) {
-        Graphics2D g2d = (Graphics2D) g;
-        int width = getWidth();
-        int height = getHeight();
-        int boardStartX = (width - BOARD_PIXEL_SIZE) / 2;
-
-        try {
-            Image backImage = new ImageIcon(getClass().getResource("/assets/back.png")).getImage();
-            g2d.drawImage(backImage, 0, 0, width, height, this);
-            GradientPaint gradient = new GradientPaint(0, 0, new Color(240, 240, 240, 100), width / 2, 0, new Color(255, 255, 255, 0));
-            g2d.setPaint(gradient);
-            g2d.fillRect(0, 0, width / 2, height);
-        } catch (Exception e) {
-            e.printStackTrace();
+        if (SKIP_BACKGROUND) {
+            g.setColor(new Color(30, 30, 40));
+            g.fillRect(0, 0, getWidth(), getHeight());
+            return;
         }
-        drawImage(g2d, "cometa.png", 60, 210, 80, 80, true);
-        drawImage(g2d, "cometa.png", 200, 600, 50, 50, true);
-        drawImage(g2d, "cometa.png", 400, 300, 50, 50, false);
-        drawImage(g2d, "cometa3.png", 100, 300, 50, 50, false);
-        drawImage(g2d, "cometa3.png", 5, 700, 50, 50, true);
-        drawImage(g2d, "moon.png", 20, 30, 250, 200);
-        drawImage(g2d, "planet.png", boardStartX / 2 - 20, height / 2 - 70, 180, 140);
-        drawImage(g2d, "planet.png", 0, 780, 180, 140, true);
-        drawImage(g2d, "planet.png", 4, 550, 60, 40, true);
-        drawImage(g2d, "planet.png", 250, 200, 70, 60, false);
-        drawImage(g2d, "star1.png", boardStartX - 100, 40, 100, 55);
-        drawImage(g2d, "star1.png", boardStartX, 90, 45, 45);
-        drawImage(g2d, "star1.png", 1, 350, 130, 80);
-        drawImage(g2d, "star2.png", boardStartX / 2 - 80, height / 2 + 90, 100, 60);
-        drawImage(g2d, "star2.png", 20, height / 2, 100, 60);
-        drawImage(g2d, "star2.png", 20, 15, 90, 60);
-        drawImage(g2d, "star2.png", 350, 200, 90, 50);
-        drawImage(g2d, "star2.png", 350, 750, 80, 50);
-        drawImage(g2d, "starunique.png", boardStartX / 2 - 120, height - 190, 150, 90);
-        drawImage(g2d, "starunique.png", 200, 260, 150, 100);
-        drawImage(g2d, "starunique.png", 300, 600, 150, 100);
-        drawImage(g2d, "starunique.png", 300, 500, 80, 60);
-        drawImage(g2d, "starunique2.png", boardStartX / 2 + 60, height - 180, 120, 80);
-        drawImage(g2d, "starunique2.png", 250, 150, 75, 40);
-        drawImage(g2d, "starunique2.png", 50, 700, 75, 40);
-        drawImage(g2d, "starunique2.png", 190, 50, 60, 30);
-        drawImage(g2d, "starunique2.png", 100, 100, 70, 45);
-        drawImage(g2d, "starunique2.png", 230, 250, 45, 25);
-        drawImage(g2d, "starunique2.png", 150, 500, 40, 20);
-        drawImage(g2d, "starunique2.png", 20, 600, 40, 20);
-        drawImage(g2d, "starunique2.png", 320, 100, 50, 25);
-        drawImage(g2d, "starunique2.png", 90, 700, 45, 20);
-        drawImage(g2d, "starunique2.png", 250, 50, 40, 20);
-        drawImage(g2d, "starunique2.png", 300, 400, 50, 25);
-        drawImage(g2d, "starunique2.png", 180, 350, 45, 20);
-        drawImage(g2d, "starunique2.png", 400, 500, 40, 20);
-        drawImage(g2d, "starunique2.png", 150, 600, 35, 20);
-        drawImage(g2d, "starunique2.png", 90, 450, 50, 25);
-        drawImage(g2d, "starunique2.png", 320, 200, 45, 25);
-        drawImage(g2d, "starwow.png", 100, 200, 30, 15);
-        drawImage(g2d, "starwow.png", 250, 100, 30, 15);
-        drawImage(g2d, "starwow.png", 150, 400, 25, 12);
-        drawImage(g2d, "starwow.png", 20, 500, 30, 15);
-        drawImage(g2d, "starwow.png", 320, 150, 35, 18);
-        drawImage(g2d, "starwow.png", 70, 600, 30, 15);
-        drawImage(g2d, "starwow.png", 200, 50, 30, 15);
-        drawImage(g2d, "starwow.png", 300, 300, 35, 18);
-        drawImage(g2d, "starwow.png", 250, 600, 90, 50);
-        drawImage(g2d, "starwow.png", 250, 800, 110, 70);
-
+        if (backgroundNeedsRebuild()) {
+            buildBackgroundCache();
+        }
+        if (backgroundCache != null) {
+            g.drawImage(backgroundCache, 0, 0, null);
+        }
     }
 
-    private void drawImage(Graphics2D g2d, String file, int x, int y, int w, int h) {
-        drawImage(g2d, file, x, y, w, h, false);
+    private boolean backgroundNeedsRebuild() {
+        return backgroundCache == null
+                || backgroundCacheSize.width != getWidth()
+                || backgroundCacheSize.height != getHeight();
     }
 
-    private void drawImage(Graphics2D g2d, String file, int x, int y, int w, int h, boolean flip) {
-        try {
-            BufferedImage img = ImageIO.read(new File("assets/" + file));
-            if (img == null) return;
+    private void buildBackgroundCache() {
+        int w = Math.max(1, getWidth());
+        int h = Math.max(1, getHeight());
+        backgroundCache = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        backgroundCacheSize.setSize(w, h);
 
-            img = img.getSubimage(5, 5, img.getWidth() - 10, img.getHeight() - 10);
+        Graphics2D g2 = backgroundCache.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-            if (flip) {
-                g2d.drawImage(img, x + w, y, -w, h, null);
-            } else {
-                g2d.drawImage(img, x, y, w, h, null);
+        // Base gradient
+        g2.setPaint(new GradientPaint(0, 0, new Color(15, 15, 35), 0, h, new Color(40, 25, 55)));
+        g2.fillRect(0, 0, w, h);
+
+        // Glow diffuso
+        RadialGradientPaint glow = new RadialGradientPaint(
+                new Point(w/3, h/2),
+                Math.min(w, h)/1.5f,
+                new float[]{0f, 1f},
+                new Color[]{new Color(90,90,140,80), new Color(20,20,40,0)}
+        );
+        g2.setPaint(glow);
+        g2.fillRect(0,0,w,h);
+
+        int boardStartX = (w - BOARD_PIXEL_SIZE) / 2;
+
+        // Oggetti principali
+        drawAsset(g2, "moon.png", 20, 30, 220, 170);
+        drawAsset(g2, "planet.png", boardStartX / 2 - 40, h / 2 - 90, 175, 135);
+        drawAsset(g2, "planet.png", 25, h - 210, 150, 115);
+
+        // Comete originali
+        drawAsset(g2, "cometa.png", 70, 220, 60, 60);
+        drawAsset(g2, "cometa3.png", 170, 360, 50, 50);
+
+        // Comete aggiuntive (senza posizionarle sulla luna)
+        drawAssetFlip(g2, "cometa.png", 110, 500, 55, 55);
+        drawAssetFlip(g2, "cometa3.png", 60, h - 260, 70, 70);
+
+        // Stella grande nuova vicino al bordo scacchiera
+        int bigStarW = 125;
+        int bigStarH = 80;
+        int bigStarX = boardStartX - bigStarW - 18;
+        int bigStarY = h - bigStarH - 55;
+        drawAsset(g2, "starunique2.png", bigStarX, bigStarY, bigStarW, bigStarH);
+
+        // Rigenera campo stelle
+        initStarField(boardStartX, h);
+
+        // Stelle puntiformi
+        g2.setColor(STAR_COLOR_TINY);
+        for (Point p : tinyStars) g2.fillRect(p.x, p.y, 2, 2);
+
+        g2.setColor(STAR_COLOR_SMALL);
+        for (Point p : smallStars) g2.fillOval(p.x, p.y, 3, 3);
+
+        for (Point p : mediumStars) {
+            Paint prev = g2.getPaint();
+            RadialGradientPaint rg = new RadialGradientPaint(
+                    new Point(p.x+3, p.y+3),
+                    6,
+                    new float[]{0f, 1f},
+                    new Color[]{new Color(255,255,255,210), new Color(255,255,255,0)}
+            );
+            g2.setPaint(rg);
+            g2.fillOval(p.x, p.y, 6, 6);
+            g2.setPaint(prev);
+        }
+
+        // Stelle immagine (già non sovrapposte)
+        for (StarSprite s : imageStars) {
+            BufferedImage img = loadAsset(s.asset);
+            if (img != null) {
+                int crop = Math.min(5, Math.min(img.getWidth()/10, img.getHeight()/10));
+                BufferedImage sub = img.getSubimage(crop, crop,
+                        img.getWidth()-crop*2, img.getHeight()-crop*2);
+                g2.drawImage(sub, s.x, s.y, s.w, s.h, null);
             }
-        } catch (Exception e) {
-            System.err.println("Errore caricando " + file);
+        }
+
+        g2.dispose();
+    }
+
+    /**
+     * Genera un campo di stelle nella fascia sinistra (prima della scacchiera),
+     * con distribuzione semi-uniforme e sprite immagine non sovrapposti.
+     */
+    private void initStarField(int boardStartX, int height) {
+        tinyStars.clear();
+        smallStars.clear();
+        mediumStars.clear();
+        imageStars.clear();
+
+        int areaWidth = boardStartX - LEFT_MARGIN_EXTRA;
+        if (areaWidth < 140) return;
+
+        Random rnd = new Random(4321);
+
+        // ---- Stelle puntiformi (tiny) con distanza minima ----
+        java.util.function.Predicate<Point> farEnough = p -> {
+            for (Point q : tinyStars) {
+                int dx = p.x - q.x;
+                int dy = p.y - q.y;
+                if (dx*dx + dy*dy < MIN_DIST*MIN_DIST) return false;
+            }
+            return true;
+        };
+        int attempts = 0;
+        while (tinyStars.size() < TINY_COUNT && attempts < TINY_COUNT * 30) {
+            attempts++;
+            int x = 5 + rnd.nextInt(Math.max(1, areaWidth - 10));
+            int y = 15 + rnd.nextInt(Math.max(1, height - 30));
+            Point p = new Point(x, y);
+            if (farEnough.test(p)) tinyStars.add(p);
+        }
+
+        // Small & Medium
+        for (int i = 0; i < SMALL_COUNT; i++) {
+            int x = 5 + rnd.nextInt(areaWidth - 10);
+            int y = 10 + rnd.nextInt(height - 20);
+            smallStars.add(new Point(x,y));
+        }
+        for (int i = 0; i < MEDIUM_COUNT; i++) {
+            int x = 15 + rnd.nextInt(areaWidth - 30);
+            int y = 25 + rnd.nextInt(height - 50);
+            mediumStars.add(new Point(x,y));
+        }
+
+        // ---- Stelle immagine senza overlapping ----
+        int maxTries = IMAGE_STAR_COUNT * 40;
+        int created = 0;
+        int tries = 0;
+        while (created < IMAGE_STAR_COUNT && tries < maxTries) {
+            tries++;
+            String asset = STAR_ASSETS[rnd.nextInt(STAR_ASSETS.length)];
+            int w = pickWidth(rnd);
+            double ratio = 0.70 + rnd.nextDouble()*0.10;
+            int h = (int)Math.round(w * ratio);
+
+            int x = 8 + rnd.nextInt(Math.max(1, areaWidth - w - 16));
+            int y = 8 + rnd.nextInt(Math.max(1, height - h - 24));
+
+            Rectangle candidate = new Rectangle(x - MIN_GAP/2, y - MIN_GAP/2, w + MIN_GAP, h + MIN_GAP);
+
+            boolean collides = false;
+            for (StarSprite other : imageStars) {
+                if (candidate.intersects(other.boundsWithPadding(MIN_GAP))) {
+                    collides = true;
+                    break;
+                }
+            }
+            if (collides) continue;
+
+            imageStars.add(new StarSprite(asset, x, y, w, h));
+            created++;
         }
     }
 
+    private int pickWidth(Random rnd) {
+        double roll = rnd.nextDouble();
+        if (roll < 0.40) {
+            return 18 + rnd.nextInt(7);
+        } else if (roll < 0.75) {
+            return 26 + rnd.nextInt(9);
+        } else if (roll < 0.92) {
+            return 36 + rnd.nextInt(10);
+        } else {
+            return 52 + rnd.nextInt(10);
+        }
+    }
+
+    private void drawAsset(Graphics2D g2, String file, int x, int y, int w, int h) {
+        BufferedImage img = loadAsset(file);
+        if (img == null) return;
+        int crop = Math.min(5, Math.min(img.getWidth()/10, img.getHeight()/10));
+        BufferedImage sub = img.getSubimage(crop, crop,
+                img.getWidth()-crop*2, img.getHeight()-crop*2);
+        g2.drawImage(sub, x, y, w, h, null);
+    }
+
+    /** Disegna un asset flippato orizzontalmente */
+    private void drawAssetFlip(Graphics2D g2, String file, int x, int y, int w, int h) {
+        BufferedImage img = loadAsset(file);
+        if (img == null) return;
+        int crop = Math.min(5, Math.min(img.getWidth()/10, img.getHeight()/10));
+        BufferedImage sub = img.getSubimage(crop, crop,
+                img.getWidth()-crop*2, img.getHeight()-crop*2);
+        g2.drawImage(sub, x + w, y, -w, h, null);
+    }
+
+    private BufferedImage loadAsset(String file) {
+        BufferedImage cached = assetImageCache.get(file);
+        if (cached != null) return cached;
+        for (String path : loadAssetPathCandidates(file)) {
+            try {
+                BufferedImage img = ImageIO.read(new File(path));
+                if (img != null) {
+                    assetImageCache.put(file, img);
+                    return img;
+                }
+            } catch (Exception ignored) {}
+        }
+        return null;
+    }
+
+    private List<String> loadAssetPathCandidates(String file) {
+        return Arrays.asList(
+                "assets/" + file,
+                "resources/assets/" + file,
+                file
+        );
+    }
+
+    /* ===================== Altre parti UI ===================== */
 
     private void drawPixelBorder(Graphics g) {
         g.setColor(new Color(30, 18, 48));
@@ -403,12 +654,10 @@ public class GameGUI extends JPanel {
         int endX = startX + BOARD_PIXEL_SIZE;
         int endY = startY + BOARD_PIXEL_SIZE;
         int pixelSize = 10;
-
         for (int x = startX - pixelSize; x < endX + pixelSize; x += pixelSize) {
             g.fillRect(x, startY - pixelSize, pixelSize, pixelSize);
             g.fillRect(x, endY, pixelSize, pixelSize);
         }
-
         for (int y = startY; y < endY; y += pixelSize) {
             g.fillRect(startX - pixelSize, y, pixelSize, pixelSize);
             g.fillRect(endX, y, pixelSize, pixelSize);
@@ -416,17 +665,15 @@ public class GameGUI extends JPanel {
     }
 
     private void drawChessBoard(Graphics g) {
-        Color dark = new Color(0x18254a);
-        Color light = new Color(245, 238, 220);
-
+        final Color dark = new Color(0x18254a);
+        final Color light = new Color(245, 238, 220);
         int startX = (getWidth() - BOARD_PIXEL_SIZE) / 2;
         int startY = (getHeight() - BOARD_PIXEL_SIZE) / 2;
-
         for (int row = 0; row < BOARD_SIZE; row++) {
+            int y = startY + row * TILE_SIZE;
             for (int col = 0; col < BOARD_SIZE; col++) {
-                boolean isDark = (row + col) % 2 != 0;
-                g.setColor(isDark ? dark : light);
-                g.fillRect(startX + col * TILE_SIZE, startY + row * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                g.setColor(((row + col) & 1) == 1 ? dark : light);
+                g.fillRect(startX + col * TILE_SIZE, y, TILE_SIZE, TILE_SIZE);
             }
         }
     }
@@ -434,36 +681,35 @@ public class GameGUI extends JPanel {
     private void drawPieces(Graphics g) {
         int startX = (getWidth() - BOARD_PIXEL_SIZE) / 2;
         int startY = (getHeight() - BOARD_PIXEL_SIZE) / 2;
-        double scaleFactor = 0.85;
-
-        for (int row = 0; row < BOARD_SIZE; row++) {
-            for (int col = 0; col < BOARD_SIZE; col++) {
-                Piece piece = gameLogic.getBoard().getPieceAt(new Position(row, col));
-                if (piece != null) {
-                    BufferedImage pieceImg = piece.getTexture();
-                    int pieceWidth = (int) (TILE_SIZE * scaleFactor);
-                    int pieceHeight = (int) (TILE_SIZE * scaleFactor);
-                    BufferedImage resizedPiece = resizeImage(pieceImg, pieceWidth, pieceHeight);
-                    int x = startX + col * TILE_SIZE + (TILE_SIZE - pieceWidth) / 2;
-                    int y = startY + row * TILE_SIZE + (TILE_SIZE - pieceHeight) / 2;
-                    g.drawImage(resizedPiece, x, y, null);
+        final double scaleFactor = 0.85;
+        final int pieceW = (int) (TILE_SIZE * scaleFactor);
+        final int pieceH = pieceW;
+        for (int r = 0; r < BOARD_SIZE; r++) {
+            int y = startY + r * TILE_SIZE + (TILE_SIZE - pieceH) / 2;
+            for (int c = 0; c < BOARD_SIZE; c++) {
+                Piece p = gameLogic.getBoard().getPieceAt(new Position(r, c));
+                if (p == null) continue;
+                BufferedImage tex = p.getTexture();
+                Image scaled = getScaledPieceImage(tex, pieceW, pieceH);
+                if (scaled == null) {
+                    g.setColor(p.getColor() == ChessColor.WHITE ? Color.WHITE : Color.BLACK);
+                    g.fillOval(startX + c * TILE_SIZE + 10, y + 10, pieceW - 20, pieceH - 20);
+                } else {
+                    int x = startX + c * TILE_SIZE + (TILE_SIZE - pieceW) / 2;
+                    g.drawImage(scaled, x, y, null);
                 }
             }
         }
     }
-
 
     private void drawCapturedPieces(Graphics g) {
         int iconSize = 40;
         int padding = 8;
         int windowWidth = 250;
         int marginFromBoard = 35;
-
-        //PER LA SCACCHIERA
         int boardStartX = (getWidth() - BOARD_PIXEL_SIZE) / 2;
         int boardStartY = (getHeight() - BOARD_PIXEL_SIZE) / 2;
 
-        //finestrella --
         int windowX = boardStartX + BOARD_PIXEL_SIZE + marginFromBoard;
         int windowY = boardStartY;
 
@@ -480,28 +726,63 @@ public class GameGUI extends JPanel {
         g2d.setFont(new Font("Press Start 2P", Font.PLAIN, 12));
         int textLeft = windowX + 15;
 
+        /* ===== TIMER WHITE (in alto) ===== */
+        int timerHeight = 26;
+        drawPlayerClock(g2d,
+                playerWhiteName,
+                formatClock(whiteMillis),
+                windowX + 10,
+                windowY + 8,
+                windowWidth - 20,
+                timerHeight,
+                gameLogic.getTurn() == ChessColor.WHITE && !gameOver);
+
+        /* ===== Label & pezzi White ===== */
+        int whiteLabelY = windowY + 8 + timerHeight + 18;
         g2d.setColor(Color.BLACK);
-        g2d.drawString(playerWhiteName + " captured:", textLeft, windowY + 25);
+        g2d.drawString(playerWhiteName + " captured:", textLeft, whiteLabelY);
+        int whitePiecesStartY = whiteLabelY + 10;
 
         for (int i = 0; i < whiteCaptured.size(); i++) {
-            BufferedImage img = resizeImage(whiteCaptured.get(i).getTexture(), iconSize, iconSize);
-            int x = textLeft + (i % 5) * (iconSize + padding);
-            int y = windowY + 35 + (i / 5) * (iconSize + padding);
-            g2d.drawImage(img, x, y, null);
+            BufferedImage img = whiteCaptured.get(i).getTexture();
+            if (img != null) {
+                Image scaled = getScaledPieceImage(img, iconSize, iconSize);
+                int x = textLeft + (i % 5) * (iconSize + padding);
+                int y = whitePiecesStartY + (i / 5) * (iconSize + padding);
+                g2d.drawImage(scaled, x, y, null);
+            }
         }
 
-        //LINEA DIVISORIA ------
+        /* ===== Linea divisoria ===== */
+        int midLineY = windowY + BOARD_PIXEL_SIZE / 2;
         g2d.setColor(new Color(200, 200, 200));
-        g2d.drawLine(windowX + 10, windowY + BOARD_PIXEL_SIZE/2,
-                windowX + windowWidth - 10, windowY + BOARD_PIXEL_SIZE/2);
+        g2d.drawLine(windowX + 10, midLineY, windowX + windowWidth - 10, midLineY);
+
+        /* ===== TIMER BLACK (subito sopra sezione nera) ===== */
+        int blackTimerY = midLineY + 8;
+        drawPlayerClock(g2d,
+                playerBlackName,
+                formatClock(blackMillis),
+                windowX + 10,
+                blackTimerY,
+                windowWidth - 20,
+                timerHeight,
+                gameLogic.getTurn() == ChessColor.BLACK && !gameOver);
+
+        /* ===== Label & pezzi Black ===== */
+        int blackLabelY = blackTimerY + timerHeight + 18;
         g2d.setColor(Color.BLACK);
-        g2d.drawString(playerBlackName + " captured:", textLeft, windowY + BOARD_PIXEL_SIZE/2 + 25);
+        g2d.drawString(playerBlackName + " captured:", textLeft, blackLabelY);
+        int blackPiecesStartY = blackLabelY + 10;
 
         for (int i = 0; i < blackCaptured.size(); i++) {
-            BufferedImage img = resizeImage(blackCaptured.get(i).getTexture(), iconSize, iconSize);
-            int x = textLeft + (i % 5) * (iconSize + padding);
-            int y = windowY + BOARD_PIXEL_SIZE/2 + 35 + (i / 5) * (iconSize + padding);
-            g2d.drawImage(img, x, y, null);
+            BufferedImage img = blackCaptured.get(i).getTexture();
+            if (img != null) {
+                Image scaled = getScaledPieceImage(img, iconSize, iconSize);
+                int x = textLeft + (i % 5) * (iconSize + padding);
+                int y = blackPiecesStartY + (i / 5) * (iconSize + padding);
+                g2d.drawImage(scaled, x, y, null);
+            }
         }
     }
 
@@ -510,32 +791,22 @@ public class GameGUI extends JPanel {
         g2d.setColor(new Color(0, 0, 0, 180));
         g2d.fillRect(0, 0, getWidth(), getHeight());
 
-        try {
-            Font customFont;
-            InputStream fontStream = getClass().getResourceAsStream("/assets/PressStart2P-Regular.ttf");
-
-            if (fontStream != null) {
-                customFont = Font.createFont(Font.TRUETYPE_FONT, fontStream).deriveFont(48f);
-                g2d.setFont(customFont);
-                fontStream.close();
-            } else {
-                g2d.setFont(new Font("Arial", Font.BOLD, 48));
-                System.err.println("Font non trovato, usando fallback");
-            }
+        try (InputStream fontStream = getClass().getResourceAsStream("/assets/PressStart2P-Regular.ttf")) {
+            Font customFont = (fontStream != null)
+                    ? Font.createFont(Font.TRUETYPE_FONT, fontStream).deriveFont(48f)
+                    : new Font("Arial", Font.BOLD, 48);
+            g2d.setFont(customFont);
         } catch (Exception e) {
             g2d.setFont(new Font("Arial", Font.BOLD, 48));
-            System.err.println("Errore caricamento font: " + e.getMessage());
         }
 
         g2d.setColor(Color.WHITE);
         FontMetrics fm = g2d.getFontMetrics();
-
         String drawText = "DRAW!";
         int textWidth = fm.stringWidth(drawText);
         int x = (getWidth() - textWidth) / 2;
         int y = getHeight() / 2 - 50;
         g2d.drawString(drawText, x, y);
-
 
         g2d.setFont(g2d.getFont().deriveFont(24f));
         fm = g2d.getFontMetrics();
@@ -557,33 +828,25 @@ public class GameGUI extends JPanel {
         g2d.setColor(new Color(0, 0, 0, 180));
         g2d.fillRect(0, 0, getWidth(), getHeight());
 
-        String winText = (winner == ChessColor.WHITE) ?
-                playerWhiteName + " WINS!" : playerBlackName + " WINS!";
-        g2d.setColor(Color.WHITE);
+        String winText = (winner == ChessColor.WHITE)
+                ? playerWhiteName + " WINS!"
+                : playerBlackName + " WINS!";
 
-        try {
-            Font customFont;
-            InputStream fontStream = getClass().getResourceAsStream("/assets/PressStart2P-Regular.ttf");
-
-            if (fontStream != null) {
-                customFont = Font.createFont(Font.TRUETYPE_FONT, fontStream).deriveFont(48f);
-                g2d.setFont(customFont);
-                fontStream.close();
-            } else {
-                g2d.setFont(new Font("Arial", Font.BOLD, 48));
-                System.err.println("Font non trovato, usando fallback");
-            }
+        try (InputStream fontStream = getClass().getResourceAsStream("/assets/PressStart2P-Regular.ttf")) {
+            Font customFont = (fontStream != null)
+                    ? Font.createFont(Font.TRUETYPE_FONT, fontStream).deriveFont(48f)
+                    : new Font("Arial", Font.BOLD, 48);
+            g2d.setFont(customFont);
         } catch (Exception e) {
             g2d.setFont(new Font("Arial", Font.BOLD, 48));
-            System.err.println("Errore caricamento font: " + e.getMessage());
         }
 
+        g2d.setColor(Color.WHITE);
         FontMetrics fm = g2d.getFontMetrics();
         int textWidth = fm.stringWidth(winText);
         int x = (getWidth() - textWidth) / 2;
         int y = getHeight() / 2;
         g2d.drawString(winText, x, y);
-
 
         g2d.setFont(new Font(g2d.getFont().getName(), Font.PLAIN, 24));
         String restartText = "Click anywhere to restart";
@@ -593,12 +856,143 @@ public class GameGUI extends JPanel {
         g2d.drawString(restartText, x, y);
     }
 
-    private BufferedImage resizeImage(BufferedImage originalImage, int width, int height) {
-        Image resizedImage = originalImage.getScaledInstance(width, height, Image.SCALE_SMOOTH);
-        BufferedImage bufferedResizedImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g2d = bufferedResizedImage.createGraphics();
-        g2d.drawImage(resizedImage, 0, 0, null);
-        g2d.dispose();
-        return bufferedResizedImage;
+    /* ============== Utils scaling pezzi ============== */
+    private Image getScaledPieceImage(BufferedImage img, int w, int h) {
+        if (img == null) return null;
+        String key = System.identityHashCode(img) + "@" + w + "x" + h;
+        Image cached = pieceScaleCache.get(key);
+        if (cached != null) return cached;
+        Image scaled = img.getScaledInstance(w, h, Image.SCALE_SMOOTH);
+        pieceScaleCache.put(key, scaled);
+        return scaled;
+    }
+
+    /* ================== TIMER METHODS ================== */
+    private void initClocks() {
+        whiteMillis = blackMillis = START_MILLIS_DEFAULT;
+        lastTickNano = System.nanoTime();
+        clockSwingTimer = new javax.swing.Timer(200, e -> updateClocks());
+        clockSwingTimer.start();
+        clocksRunning = true;
+    }
+
+    private void updateClocks() {
+        if (!clocksRunning || gameOver || showAtariScreen || showNameInput) return;
+
+        long now = System.nanoTime();
+        long delta = now - lastTickNano;
+        lastTickNano = now;
+        long deltaMs = Math.max(0, delta / 1_000_000L);
+
+        ChessColor turn = gameLogic.getTurn();
+        if (turn == ChessColor.WHITE) {
+            whiteMillis -= deltaMs;
+            if (whiteMillis < 0) whiteMillis = 0;
+        } else {
+            blackMillis -= deltaMs;
+            if (blackMillis < 0) blackMillis = 0;
+        }
+
+        if (lossOnTime && (whiteMillis == 0 || blackMillis == 0) && !gameOver) {
+            gameOver = true;
+            winner = (whiteMillis == 0) ? ChessColor.BLACK : ChessColor.WHITE;
+            clocksRunning = false;
+        }
+
+        repaint();
+    }
+
+    private String formatClock(long ms) {
+        if (ms < 0) ms = 0;
+        long totalSeconds = ms / 1000;
+        long minutes = totalSeconds / 60;
+        long seconds = totalSeconds % 60;
+        if (totalSeconds < 10) {
+            long tenths = (ms % 1000) / 100;
+            return String.format("%d:%02d.%d", minutes, seconds, tenths);
+        }
+        return String.format("%d:%02d", minutes, seconds);
+    }
+
+    private void drawPlayerClock(Graphics2D g2d, String name, String timeText,
+                                 int x, int y, int w, int h, boolean active) {
+        Object oldAA = g2d.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        // Fondo
+        g2d.setColor(new Color(250, 248, 244, 235));
+        g2d.fillRoundRect(x, y, w, h, 10, 10);
+
+        // Colori gradient
+        Color c1, c2, c3;
+        if (active) {
+            c1 = new Color(120, 235, 255);
+            c2 = new Color(50, 160, 250);
+            c3 = new Color(140, 250, 255);
+            long activeMs = name.equals(playerWhiteName) ? whiteMillis : blackMillis;
+            if (activeMs <= 10_000) { // Low time alert
+                c1 = new Color(255, 140, 140);
+                c2 = new Color(200, 40, 60);
+                c3 = new Color(255, 180, 180);
+            }
+        } else {
+            c1 = new Color(170, 150, 210);
+            c2 = new Color(120, 100, 170);
+            c3 = new Color(190, 170, 225);
+        }
+
+        LinearGradientPaint grad = new LinearGradientPaint(
+                new Point(x, y),
+                new Point(x + w, y + h),
+                new float[]{0f, 0.5f, 1f},
+                new Color[]{c1, c2, c3}
+        );
+
+        Stroke oldStroke = g2d.getStroke();
+        Paint oldPaint = g2d.getPaint();
+
+        g2d.setStroke(new BasicStroke(active ? 4.2f : 3.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g2d.setPaint(grad);
+        g2d.drawRoundRect(x, y, w, h, 10, 10);
+
+        // Inner glow
+        g2d.setStroke(new BasicStroke(1.4f));
+        g2d.setColor(new Color(255, 255, 255, active ? 140 : 90));
+        g2d.drawRoundRect(x + 2, y + 2, w - 4, h - 4, 8, 8);
+
+        g2d.setStroke(oldStroke);
+        g2d.setPaint(oldPaint);
+
+        // Nome
+        Font nameFont = new Font("Press Start 2P", Font.PLAIN, 11);
+        g2d.setFont(nameFont);
+        FontMetrics fm = g2d.getFontMetrics();
+        String shortName = name;
+        if (shortName.length() > 12) shortName = shortName.substring(0, 12);
+        int nameX = x + 8;
+        int nameY = y + (h + fm.getAscent()) / 2 - 3;
+        g2d.setColor(new Color(40, 40, 60));
+        g2d.drawString(shortName.toUpperCase(), nameX, nameY);
+
+        // Tempo
+        Font timeFont = new Font("Press Start 2P", Font.PLAIN, 12);
+        g2d.setFont(timeFont);
+        FontMetrics tfm = g2d.getFontMetrics();
+        int timeX = x + w - tfm.stringWidth(timeText) - 10;
+        int timeY = y + (h + tfm.getAscent()) / 2 - 4;
+        g2d.setColor(active ? new Color(15, 55, 90) : new Color(70, 65, 95));
+        g2d.drawString(timeText, timeX, timeY);
+
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, oldAA);
+    }
+
+    /* ===== Helper per stelle decorative con immagine ===== */
+    private static class StarSprite {
+        final String asset;
+        final int x,y,w,h;
+        StarSprite(String a,int x,int y,int w,int h){this.asset=a;this.x=x;this.y=y;this.w=w;this.h=h;}
+        Rectangle boundsWithPadding(int pad){
+            return new Rectangle(x - pad, y - pad, w + pad*2, h + pad*2);
+        }
     }
 }
