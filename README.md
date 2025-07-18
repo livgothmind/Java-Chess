@@ -95,11 +95,11 @@ src/main/java/
 - ✅ Turni alternati tra giocatori
 - ✅ Cattura dei pezzi avversari
 - ✅ Rilevamento di scacco e scacco matto
+- ✅ Controllo del tempo di gioco
 
 ### Regole Speciali
 - ✅ **Arrocco**: Corto e lungo per entrambi i giocatori
 - ✅ **En Passant**: Cattura speciale del pedone
-- ✅ **Promozione**: Trasformazione del pedone raggiunta l'ottava traversa
 - ✅ **Situazioni di pareggio**: Stallo, regola dei 50 movimenti
 
 ### Interfaccia Utente
